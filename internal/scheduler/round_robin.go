@@ -15,6 +15,7 @@ type RoundRobinScheduler struct {
 	nextCustomerIndex int
 	output            chan events.DeliveryJob
 	closed            bool
+	queuedJobCount    int
 }
 
 func NewRoundRobinScheduler(bufferSize int) *RoundRobinScheduler {
@@ -62,6 +63,7 @@ func (scheduler *RoundRobinScheduler) Enqueue(job events.DeliveryJob) {
 	}
 
 	scheduler.customerQueues[customerID] = append(scheduler.customerQueues[customerID], job)
+	scheduler.queuedJobCount++
 	scheduler.condition.Signal()
 }
 
@@ -84,11 +86,19 @@ func (scheduler *RoundRobinScheduler) waitForNextJob(requestContext context.Cont
 
 		nextJob, found := scheduler.dequeueNextJobLocked()
 		if found {
+			scheduler.queuedJobCount--
 			return nextJob, true
 		}
 
 		scheduler.condition.Wait()
 	}
+}
+
+func (scheduler *RoundRobinScheduler) QueueDepth() int {
+	scheduler.mutex.Lock()
+	defer scheduler.mutex.Unlock()
+
+	return scheduler.queuedJobCount
 }
 
 func (scheduler *RoundRobinScheduler) dequeueNextJobLocked() (events.DeliveryJob, bool) {

@@ -16,6 +16,8 @@ import (
 	"webhook-notifier/internal/delivery"
 	"webhook-notifier/internal/events"
 	"webhook-notifier/internal/httpx"
+	"webhook-notifier/internal/kafka"
+	"webhook-notifier/internal/metrics"
 	"webhook-notifier/internal/registration"
 	"webhook-notifier/internal/retry"
 	"webhook-notifier/internal/scheduler"
@@ -28,6 +30,9 @@ type Application struct {
 	scheduler         *scheduler.RoundRobinScheduler
 	deliveryClient    *delivery.HTTPClient
 	retryPolicy       retry.ExponentialBackoffPolicy
+	kafkaConsumer     kafka.Consumer
+	deadLetterWriter  kafka.DeadLetterWriter
+	notifierMetrics   *metrics.NotifierMetrics
 	httpServer        *http.Server
 	deadLetterMutex   sync.Mutex
 	deadLetters       []events.DeadLetterMessage
@@ -45,19 +50,33 @@ type ingestResponse struct {
 
 func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger) *Application {
 	application := &Application{
-		config:         applicationConfig,
-		logger:         logger,
-		registry:       registration.NewMemoryRegistry(applicationConfig.WebhookRegistrations),
-		scheduler:      scheduler.NewRoundRobinScheduler(applicationConfig.WorkerCount * 4),
-		deliveryClient: delivery.NewHTTPClient(applicationConfig.RequestTimeout),
+		config:          applicationConfig,
+		logger:          logger,
+		registry:        registration.NewMemoryRegistry(applicationConfig.WebhookRegistrations),
+		scheduler:       scheduler.NewRoundRobinScheduler(applicationConfig.WorkerCount * 4),
+		deliveryClient:  delivery.NewHTTPClient(applicationConfig.RequestTimeout),
+		notifierMetrics: metrics.NewNotifierMetrics(),
 		retryPolicy: retry.ExponentialBackoffPolicy{
 			InitialDelay:    applicationConfig.InitialRetryDelay,
 			MaxRetryAttempt: applicationConfig.MaxRetryAttempts,
 		},
 	}
 
+	if len(applicationConfig.KafkaBrokers) > 0 {
+		application.kafkaConsumer = kafka.NewEventConsumer(
+			applicationConfig.KafkaBrokers,
+			applicationConfig.KafkaTopic,
+			applicationConfig.KafkaConsumerGroup,
+		)
+		application.deadLetterWriter = kafka.NewDeadLetterPublisher(
+			applicationConfig.KafkaBrokers,
+			applicationConfig.KafkaDLQTopic,
+		)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", application.handleHealth)
+	mux.Handle("GET /metrics", metrics.Handler())
 	mux.HandleFunc("GET /stats", application.handleStats)
 	mux.HandleFunc("GET /registrations", application.handleRegistrations)
 	mux.HandleFunc("GET /dlq", application.handleDeadLetters)
@@ -74,6 +93,7 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 
 func (application *Application) Run(requestContext context.Context) error {
 	scheduledJobs := application.scheduler.Start(requestContext)
+	application.startMetricsReporter(requestContext)
 
 	var workerGroup sync.WaitGroup
 	for workerIndex := 0; workerIndex < application.config.WorkerCount; workerIndex++ {
@@ -85,6 +105,7 @@ func (application *Application) Run(requestContext context.Context) error {
 	}
 
 	serverErrors := make(chan error, 1)
+	kafkaErrors := make(chan error, 1)
 	go func() {
 		application.logger.Info("starting notifier", "address", application.config.HTTPAddress, "workerCount", application.config.WorkerCount)
 		listenError := application.httpServer.ListenAndServe()
@@ -95,12 +116,34 @@ func (application *Application) Run(requestContext context.Context) error {
 		serverErrors <- nil
 	}()
 
+	if application.kafkaConsumer != nil {
+		go func() {
+			application.logger.Info(
+				"starting kafka consumer",
+				"brokers", strings.Join(application.config.KafkaBrokers, ","),
+				"topic", application.config.KafkaTopic,
+				"consumerGroup", application.config.KafkaConsumerGroup,
+			)
+
+			consumeError := application.kafkaConsumer.Start(requestContext, func(subscriberEvent events.SubscriberEvent) error {
+				_, ingestError := application.ingestEvents([]events.SubscriberEvent{subscriberEvent})
+				return ingestError
+			})
+			kafkaErrors <- consumeError
+		}()
+	}
+
 	select {
 	case <-requestContext.Done():
 	case serverError := <-serverErrors:
 		if serverError != nil {
 			application.scheduler.Close()
 			return serverError
+		}
+	case kafkaError := <-kafkaErrors:
+		if kafkaError != nil {
+			application.scheduler.Close()
+			return kafkaError
 		}
 	}
 
@@ -126,6 +169,7 @@ func (application *Application) runWorker(requestContext context.Context, worker
 
 			result := application.deliveryClient.Deliver(requestContext, job)
 			application.logDeliveryResult(workerID, result)
+			application.recordDeliveryMetrics(result)
 
 			if result.StatusCode >= 200 && result.StatusCode < 300 {
 				application.deliveredEvents.Add(1)
@@ -146,13 +190,21 @@ func (application *Application) runWorker(requestContext context.Context, worker
 			}
 
 			application.deadLetterCount.Add(1)
+			application.notifierMetrics.DeadLetterCounter.Inc()
 			application.deadLetterMutex.Lock()
-			application.deadLetters = append(application.deadLetters, events.DeadLetterMessage{
+			deadLetterMessage := events.DeadLetterMessage{
 				Job:           job,
 				FailureReason: result.FailureReason,
 				ExhaustedAt:   time.Now(),
-			})
+			}
+			application.deadLetters = append(application.deadLetters, deadLetterMessage)
 			application.deadLetterMutex.Unlock()
+
+			if application.deadLetterWriter != nil {
+				if publishError := application.deadLetterWriter.Publish(deadLetterMessage); publishError != nil {
+					application.logger.Error("publish dead letter message", "error", publishError, "eventID", job.Event.EventID)
+				}
+			}
 		}
 	}
 }
@@ -264,6 +316,7 @@ func (application *Application) ingestEvents(subscriberEvents []events.Subscribe
 		}
 
 		application.receivedEvents.Add(1)
+		application.notifierMetrics.ReceivedEventsCounter.Inc()
 		for _, webhookURL := range webhookURLs {
 			application.scheduler.Enqueue(events.DeliveryJob{
 				Event:      subscriberEvent,
@@ -276,6 +329,47 @@ func (application *Application) ingestEvents(subscriberEvents []events.Subscribe
 	}
 
 	return createdJobs, nil
+}
+
+func (application *Application) startMetricsReporter(requestContext context.Context) {
+	go func() {
+		reportTicker := time.NewTicker(2 * time.Second)
+		defer reportTicker.Stop()
+
+		for {
+			select {
+			case <-requestContext.Done():
+				return
+			case <-reportTicker.C:
+				application.notifierMetrics.ScheduledQueueDepthGauge.Set(float64(application.scheduler.QueueDepth()))
+			}
+		}
+	}()
+}
+
+func (application *Application) recordDeliveryMetrics(result events.DeliveryResult) {
+	statusFamily := fmt.Sprintf("%dxx", result.StatusCode/100)
+	if result.StatusCode == 0 {
+		statusFamily = "transport"
+	}
+
+	application.notifierMetrics.DeliveryDurationHistogram.
+		WithLabelValues(result.Job.Event.CustomerID, statusFamily).
+		Observe(result.Duration.Seconds())
+
+	if result.StatusCode >= 200 && result.StatusCode < 300 {
+		application.notifierMetrics.DeliveredEventsCounter.WithLabelValues(result.Job.Event.CustomerID).Inc()
+		return
+	}
+
+	application.notifierMetrics.FailedDeliveriesCounter.WithLabelValues(
+		result.Job.Event.CustomerID,
+		fmt.Sprintf("%t", result.ShouldRetry),
+	).Inc()
+
+	if result.ShouldRetry && application.retryPolicy.CanRetry(result.Job.Attempt) {
+		application.notifierMetrics.RetriedDeliveriesCounter.Inc()
+	}
 }
 
 func validateEvent(subscriberEvent events.SubscriberEvent) error {

@@ -19,6 +19,8 @@ type NotifierConfig struct {
 	WebhookRegistrations map[string][]string
 	KafkaBrokers         []string
 	KafkaTopic           string
+	KafkaConsumerGroup   string
+	KafkaDLQTopic        string
 }
 
 type MockReceiverConfig struct {
@@ -81,6 +83,8 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 		WebhookRegistrations: webhookRegistrations,
 		KafkaBrokers:         splitCommaSeparatedValues(readEnvironment("NOTIFIER_KAFKA_BROKERS", "")),
 		KafkaTopic:           readEnvironment("NOTIFIER_KAFKA_TOPIC", "subscriber-events"),
+		KafkaConsumerGroup:   readEnvironment("NOTIFIER_KAFKA_CONSUMER_GROUP", "webhook-notifier"),
+		KafkaDLQTopic:        readEnvironment("NOTIFIER_KAFKA_DLQ_TOPIC", "subscriber-events-dlq"),
 	}, nil
 }
 

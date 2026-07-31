@@ -2,6 +2,19 @@
 
 This checklist translates the current requirement and planning documents into an execution-ready implementation plan for the assignment.
 
+## Existing Kubernetes Environment
+
+- [x] Kafka is already running in Kubernetes:
+  - [x] Namespace: `default`
+  - [x] Service: `kafka-service`
+  - [x] Cluster DNS: `kafka-service.default.svc.cluster.local:9092`
+- [x] Observability stack is already running in Kubernetes:
+  - [x] Namespace: `monitoring`
+  - [x] Prometheus service: `prometheus.monitoring.svc.cluster.local:9090`
+  - [x] Grafana service: `grafana.monitoring.svc.cluster.local:3000`
+  - [x] Kafka exporter service: `kafka-exporter.monitoring.svc.cluster.local:9308`
+- [ ] Add notifier deployment annotations or scrape configuration so Prometheus can collect `/metrics`
+
 ## Requirement Summary
 
 - [x] Confirm architecture direction: Go monolith consuming Kafka events and delivering customer webhooks
@@ -77,7 +90,7 @@ This checklist translates the current requirement and planning documents into an
 ## Phase 3: Mock Event Generator
 
 - [x] Implement HTTP server for generator utility
-- [ ] Implement Kafka producer
+- [x] Implement Kafka producer
 - [x] Add `POST /generate`
 - [x] Add `POST /generate/bulk`
 - [x] Add `POST /scenario/whale`
@@ -106,14 +119,14 @@ This checklist translates the current requirement and planning documents into an
 
 ## Phase 5: Kafka Consumer
 
-- [ ] Implement Kafka consumer group
-- [ ] Subscribe to the event topic
-- [ ] Deserialize incoming subscriber events
-- [ ] Validate required event fields
-- [ ] Resolve target webhook endpoints for each event
-- [ ] Transform events into internal delivery jobs
-- [ ] Handle consumer shutdown cleanly
-- [ ] Define offset commit strategy aligned with at-least-once delivery
+- [x] Implement Kafka consumer group
+- [x] Subscribe to the event topic
+- [x] Deserialize incoming subscriber events
+- [x] Validate required event fields
+- [x] Resolve target webhook endpoints for each event
+- [x] Transform events into internal delivery jobs
+- [x] Handle consumer shutdown cleanly
+- [x] Define offset commit strategy aligned with at-least-once delivery
 
 ## Phase 6: Fair Scheduler
 
@@ -151,7 +164,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Implement exponential backoff policy
 - [x] Make retry attempts and delays configurable
 - [x] Requeue retryable jobs after delay
-- [ ] Publish exhausted jobs to DLQ topic
+- [x] Publish exhausted jobs to DLQ topic
 - [x] Include failure reason and retry count in DLQ message
 - [ ] Add tests for retry transitions and DLQ routing
 
@@ -164,16 +177,16 @@ This checklist translates the current requirement and planning documents into an
   - [x] retry count
   - [x] delivery status
   - [x] processing duration
-- [ ] Add metrics for:
-  - [ ] received events
-  - [ ] delivered events
-  - [ ] failed deliveries
-  - [ ] retry count
-  - [ ] DLQ count
-  - [ ] request latency
+- [x] Add metrics for:
+  - [x] received events
+  - [x] delivered events
+  - [x] failed deliveries
+  - [x] retry count
+  - [x] DLQ count
+  - [x] request latency
   - [ ] throughput
 - [x] Add `GET /health`
-- [ ] Add `GET /metrics`
+- [x] Add `GET /metrics`
 
 ## Phase 11: Packaging And Local Environment
 
@@ -192,8 +205,8 @@ This checklist translates the current requirement and planning documents into an
   - [ ] notifier deployment and service
   - [ ] generator deployment and service
   - [ ] receiver deployment and service
-  - [ ] Kafka dependencies or integration notes
-- [ ] Ensure notifier supports horizontal scaling with Kafka consumer groups
+  - [x] Kafka dependencies or integration notes
+- [x] Ensure notifier supports horizontal scaling with Kafka consumer groups
 - [ ] Add deployment instructions
 - [ ] Optionally add HPA placeholders
 
@@ -243,7 +256,7 @@ This checklist translates the current requirement and planning documents into an
 
 - [x] Milestone 1: project bootstrap and local app startup
 - [x] Milestone 2: mock utilities working independently
-- [ ] Milestone 3: notifier consumes Kafka and delivers basic webhooks
+- [x] Milestone 3: notifier consumes Kafka and delivers basic webhooks
 - [ ] Milestone 4: fairness, rate limiting, and worker pool complete
 - [ ] Milestone 5: retry, DLQ, logging, metrics, and health complete
 - [ ] Milestone 6: Docker, Kubernetes manifests, and documentation complete

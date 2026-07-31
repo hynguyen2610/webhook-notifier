@@ -14,6 +14,7 @@ import (
 	"webhook-notifier/internal/config"
 	"webhook-notifier/internal/events"
 	"webhook-notifier/internal/httpx"
+	"webhook-notifier/internal/kafka"
 )
 
 type Application struct {
@@ -22,6 +23,7 @@ type Application struct {
 	httpServer   *http.Server
 	httpClient   *http.Client
 	randomSource *rand.Rand
+	publisher    kafka.Publisher
 }
 
 type GenerateRequest struct {
@@ -45,6 +47,10 @@ func NewApplication(applicationConfig config.MockGeneratorConfig, logger *slog.L
 		logger:       logger,
 		httpClient:   &http.Client{Timeout: 15 * time.Second},
 		randomSource: rand.New(rand.NewSource(applicationConfig.RandomSeed)),
+	}
+
+	if len(applicationConfig.KafkaBrokers) > 0 {
+		application.publisher = kafka.NewEventPublisher(applicationConfig.KafkaBrokers, applicationConfig.KafkaTopic)
 	}
 
 	mux := http.NewServeMux()
@@ -202,6 +208,10 @@ func (application *Application) newEvent(customerID string, eventType string, ev
 }
 
 func (application *Application) publishEvents(requestContext context.Context, eventsBatch []events.SubscriberEvent) error {
+	if application.publisher != nil {
+		return application.publisher.Publish(eventsBatch)
+	}
+
 	requestBody, marshalError := json.Marshal(eventsBatch)
 	if marshalError != nil {
 		return marshalError
