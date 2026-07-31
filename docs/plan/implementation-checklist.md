@@ -203,8 +203,9 @@ This checklist translates the current requirement and planning documents into an
 ## Step 12: Testing
 
 - [ ] Add unit tests for domain models and validation
-- [ ] Add unit tests for scheduler behaviour
-- [ ] Add unit tests for retry classification and backoff
+- [x] Add unit tests for scheduler behaviour
+- [x] Add unit tests for retry classification and backoff
+- [x] Add unit tests for PostgreSQL registration lookup
 - [ ] Add integration tests for end-to-end happy path
 - [ ] Add integration tests for retry then success
 - [ ] Add integration tests for retry exhaustion to DLQ

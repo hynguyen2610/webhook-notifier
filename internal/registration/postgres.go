@@ -21,11 +21,15 @@ func NewPostgresRegistry(connectionString string, resolveQuery string, snapshotQ
 		return nil, fmt.Errorf("open postgres connection: %w", openError)
 	}
 
+	return NewPostgresRegistryWithDatabaseConnection(databaseConnection, resolveQuery, snapshotQuery), nil
+}
+
+func NewPostgresRegistryWithDatabaseConnection(databaseConnection *sql.DB, resolveQuery string, snapshotQuery string) *PostgresRegistry {
 	return &PostgresRegistry{
 		databaseConnection: databaseConnection,
 		resolveQuery:       resolveQuery,
 		snapshotQuery:      snapshotQuery,
-	}, nil
+	}
 }
 
 func (registry *PostgresRegistry) ResolveWebhookURLs(requestContext context.Context, customerID string) ([]string, error) {
