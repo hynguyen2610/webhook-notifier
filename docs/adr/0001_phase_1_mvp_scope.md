@@ -45,7 +45,7 @@ The following items are considered **in scope for the MVP**:
 - basic retry behavior
 - health endpoint
 
-The following items are considered **not required to advance the next implementation steps**, even if some early code already exists for them:
+The following items are considered **not required to advance the next implementation step sequence**, even if some early code already exists for them:
 
 - production-grade DLQ workflows
 - full observability rollout and dashboards
@@ -63,7 +63,7 @@ The codebase already contains a few capabilities that are closer to later-phase 
 - Kafka-backed DLQ publishing
 - consumer-group based Kafka reader setup
 
-These are allowed to remain in the codebase because they do not block MVP delivery and they align with the existing Kubernetes environment. However, they must be treated as **supporting enhancements**, not as signals to expand the active delivery scope.
+These are allowed to remain in the codebase because they do not block MVP delivery and they align with the existing Kubernetes environment. However, they must be treated as **supporting enhancements**, not as signals to expand the active delivery step sequence.
 
 ## Consequences
 

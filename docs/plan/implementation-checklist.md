@@ -18,12 +18,12 @@ This checklist translates the current requirement and planning documents into an
 ## Requirement Summary
 
 - [x] Confirm architecture direction: Go monolith consuming Kafka events and delivering customer webhooks
-- [x] Confirm scope includes notifier service plus two testing utilities:
+- [x] Confirm assignment implementation scope is the notifier service itself
+- [x] Confirm supporting test utilities may be mocked for local development and demonstration:
   - [x] Mock Event Generator
   - [x] Mock Webhook Receiver
 - [x] Confirm key behaviours:
   - [x] Fair per-customer scheduling
-  - [x] Per-customer rate limiting
   - [x] Configurable worker pool
   - [x] Retry with exponential backoff
   - [x] DLQ after retry exhaustion
@@ -37,16 +37,17 @@ This checklist translates the current requirement and planning documents into an
 
 ## Assumptions To Build Against
 
-- [ ] Subscriber events are already published to Kafka
-- [ ] Webhook registrations can be mocked with static configuration or in-memory data
-- [ ] HTTP 2xx means delivery success
-- [ ] Retryable failures initially include timeout, HTTP 5xx, and temporary network errors
+- [x] Subscriber events are already published to Kafka
+- [ ] Webhook registrations are read directly from PostgreSQL for the MVP
+- [x] HTTP 2xx means delivery success
+- [x] Retryable failures initially include timeout, HTTP 5xx, and temporary network errors
 - [ ] HTTP 4xx responses are non-retryable unless clarified later
-- [ ] At-least-once delivery is acceptable for the assignment
-- [ ] Event ordering is not guaranteed unless later required
-- [ ] Payload format can follow the mock event generator specification
+- [x] At-least-once delivery is acceptable for the assignment
+- [x] Event ordering is not required for this assignment
+- [x] Payload format only needs to support the Subscriber domain event
+- [x] Receivers are expected to handle duplicate event IDs idempotently
 
-## Phase 0: Project Setup
+## Step 0: Project Setup
 
 - [x] Initialize Go module and project structure
 - [x] Add `cmd/` entrypoints for:
@@ -69,7 +70,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Add structured logging baseline
 - [ ] Add README bootstrap section with local run instructions
 
-## Phase 1: Core Domain And Contracts
+## Step 1: Core Domain And Contracts
 
 - [x] Define subscriber event model
 - [x] Define webhook delivery job model
@@ -80,14 +81,16 @@ This checklist translates the current requirement and planning documents into an
 - [ ] Define rate limiter interface
 - [ ] Define delivery client interface
 
-## Phase 2: Mock Webhook Registration Source
+## Step 2: Webhook Registration Source
 
-- [x] Implement a simple mocked webhook registration source
+- [x] Implement a simple mocked webhook registration source for early development
 - [x] Support one or more endpoints per customer
 - [x] Make registrations externally configurable
+- [ ] Replace mocked registration source with PostgreSQL-backed reads
+- [ ] Define webhook registration table access pattern and query contract
 - [ ] Add sample customer-to-webhook mapping for local testing
 
-## Phase 3: Mock Event Generator
+## Step 3: Mock Event Generator
 
 - [x] Implement HTTP server for generator utility
 - [x] Implement Kafka producer
@@ -100,7 +103,7 @@ This checklist translates the current requirement and planning documents into an
 - [ ] Add configuration for broker, topic, customer count, and seed
 - [ ] Document example requests for each scenario
 
-## Phase 4: Mock Webhook Receiver
+## Step 4: Mock Webhook Receiver
 
 - [x] Implement HTTP server for receiver utility
 - [x] Add `POST /webhook/{customerId}`
@@ -117,7 +120,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Track received, success, failed, and average latency statistics
 - [x] Allow per-customer response behavior
 
-## Phase 5: Kafka Consumer
+## Step 5: Kafka Consumer
 
 - [x] Implement Kafka consumer group
 - [x] Subscribe to the event topic
@@ -128,26 +131,16 @@ This checklist translates the current requirement and planning documents into an
 - [x] Handle consumer shutdown cleanly
 - [x] Define offset commit strategy aligned with at-least-once delivery
 
-## Phase 6: Fair Scheduler
+## Step 6: Fair Scheduler
 
 - [x] Implement per-customer queues
 - [x] Implement queue manager
 - [x] Implement round-robin scheduler
 - [x] Ensure one noisy customer cannot fully starve others
-- [ ] Expose scheduler extension point for:
-  - [ ] weighted round robin
-  - [ ] deficit round robin
+- [ ] Prove fairness with an uneven multi-customer benchmark
 - [ ] Add tests covering fairness under uneven traffic
 
-## Phase 7: Per-Customer Rate Limiter
-
-- [ ] Implement token bucket limiter per customer
-- [ ] Make rate and burst configurable
-- [ ] Ensure independent limits across customers
-- [ ] Decide scheduler interaction when a customer is rate limited
-- [ ] Add tests for burst handling and refill behaviour
-
-## Phase 8: Worker Pool And Delivery
+## Step 7: Worker Pool And Delivery
 
 - [x] Implement configurable worker pool
 - [x] Implement job dispatch channel
@@ -158,7 +151,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Classify retryable vs non-retryable failures
 - [x] Preserve customer isolation when one endpoint is slow or failing
 
-## Phase 9: Retry And DLQ
+## Step 8: Retry And DLQ
 
 - [x] Implement retry manager
 - [x] Implement exponential backoff policy
@@ -168,7 +161,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Include failure reason and retry count in DLQ message
 - [ ] Add tests for retry transitions and DLQ routing
 
-## Phase 10: Observability
+## Step 9: Observability
 
 - [x] Add structured logs containing:
   - [x] event ID
@@ -188,7 +181,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Add `GET /health`
 - [x] Add `GET /metrics`
 
-## Phase 11: Packaging And Local Environment
+## Step 10: Packaging And Local Environment
 
 - [ ] Add `Dockerfile` for notifier
 - [ ] Add local `docker-compose.yml` for Kafka and supporting services
@@ -196,7 +189,7 @@ This checklist translates the current requirement and planning documents into an
 - [ ] Add sample environment files
 - [ ] Add Mermaid diagram references or generated architecture images to README
 
-## Phase 12: Kubernetes Deployment
+## Step 11: Kubernetes Deployment
 
 - [ ] Add manifests for:
   - [ ] namespace
@@ -210,11 +203,10 @@ This checklist translates the current requirement and planning documents into an
 - [ ] Add deployment instructions
 - [ ] Optionally add HPA placeholders
 
-## Phase 13: Testing
+## Step 12: Testing
 
 - [ ] Add unit tests for domain models and validation
 - [ ] Add unit tests for scheduler behaviour
-- [ ] Add unit tests for rate limiter behaviour
 - [ ] Add unit tests for retry classification and backoff
 - [ ] Add integration tests for end-to-end happy path
 - [ ] Add integration tests for retry then success
@@ -222,7 +214,7 @@ This checklist translates the current requirement and planning documents into an
 - [ ] Add integration tests for whale customer fairness scenario
 - [ ] Add failure tests for slow or unavailable receiver
 
-## Phase 14: Benchmark And Validation
+## Step 13: Benchmark And Validation
 
 - [ ] Run small scenario benchmark
 - [ ] Run high-volume multi-customer benchmark
@@ -231,7 +223,7 @@ This checklist translates the current requirement and planning documents into an
 - [ ] Validate smaller customers still make progress during whale scenario
 - [ ] Document benchmark findings and limitations
 
-## Phase 15: Documentation And Submission Readiness
+## Step 14: Documentation And Submission Readiness
 
 - [ ] Finalize README
 - [ ] Document architecture and component responsibilities
@@ -243,13 +235,10 @@ This checklist translates the current requirement and planning documents into an
 
 ## Open Questions To Resolve
 
-- [ ] Is ordering required per customer or subscriber?
-- [ ] Which exact HTTP response codes should be retried?
+- [ ] Which exact HTTP response codes should be retried besides timeout and HTTP 5xx?
 - [ ] What retry count, base delay, and max delay are expected?
-- [ ] What exact webhook payload format is expected?
-- [ ] Should rate limits be globally defaulted or configured per customer?
-- [ ] Is benchmark evidence required in the final submission?
-- [ ] Should webhook registrations remain mocked, or does the reviewer expect a simple persistence layer?
+- [ ] What exact outbound webhook payload format is expected?
+- [ ] What PostgreSQL schema or table contract should the notifier read for webhook registrations?
 - [ ] Is equal fairness enough, or should future premium-tier support influence current interfaces?
 
 ## Suggested Delivery Milestones
@@ -257,7 +246,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Milestone 1: project bootstrap and local app startup
 - [x] Milestone 2: mock utilities working independently
 - [x] Milestone 3: notifier consumes Kafka and delivers basic webhooks
-- [ ] Milestone 4: fairness, rate limiting, and worker pool complete
+- [ ] Milestone 4: PostgreSQL-backed registrations and fairness validation complete
 - [ ] Milestone 5: retry, DLQ, logging, metrics, and health complete
 - [ ] Milestone 6: Docker, Kubernetes manifests, and documentation complete
 - [ ] Milestone 7: benchmark validation and final cleanup complete
