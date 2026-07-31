@@ -1,6 +1,7 @@
 package registration
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"sync"
@@ -25,7 +26,7 @@ func NewMemoryRegistry(initialRegistrations map[string][]string) *MemoryRegistry
 	}
 }
 
-func (registry *MemoryRegistry) ResolveWebhookURLs(customerID string) ([]string, error) {
+func (registry *MemoryRegistry) ResolveWebhookURLs(_ context.Context, customerID string) ([]string, error) {
 	registry.mutex.RLock()
 	defer registry.mutex.RUnlock()
 
@@ -37,7 +38,7 @@ func (registry *MemoryRegistry) ResolveWebhookURLs(customerID string) ([]string,
 	return append([]string(nil), webhookURLs...), nil
 }
 
-func (registry *MemoryRegistry) Snapshot() map[string][]string {
+func (registry *MemoryRegistry) Snapshot(_ context.Context) (map[string][]string, error) {
 	registry.mutex.RLock()
 	defer registry.mutex.RUnlock()
 
@@ -46,7 +47,7 @@ func (registry *MemoryRegistry) Snapshot() map[string][]string {
 		snapshot[customerID] = append([]string(nil), webhookURLs...)
 	}
 
-	return snapshot
+	return snapshot, nil
 }
 
 func (registry *MemoryRegistry) SortedCustomers() []string {
@@ -59,4 +60,8 @@ func (registry *MemoryRegistry) SortedCustomers() []string {
 	}
 	sort.Strings(customerIDs)
 	return customerIDs
+}
+
+func (registry *MemoryRegistry) Close() error {
+	return nil
 }

@@ -10,17 +10,20 @@ import (
 )
 
 type NotifierConfig struct {
-	HTTPAddress          string
-	WorkerCount          int
-	RequestTimeout       time.Duration
-	MaxRetryAttempts     int
-	InitialRetryDelay    time.Duration
-	LogLevel             string
-	WebhookRegistrations map[string][]string
-	KafkaBrokers         []string
-	KafkaTopic           string
-	KafkaConsumerGroup   string
-	KafkaDLQTopic        string
+	HTTPAddress               string
+	WorkerCount               int
+	RequestTimeout            time.Duration
+	MaxRetryAttempts          int
+	InitialRetryDelay         time.Duration
+	LogLevel                  string
+	WebhookRegistrations      map[string][]string
+	KafkaBrokers              []string
+	KafkaTopic                string
+	KafkaConsumerGroup        string
+	KafkaDLQTopic             string
+	PostgresConnection        string
+	RegistrationResolveQuery  string
+	RegistrationSnapshotQuery string
 }
 
 type MockReceiverConfig struct {
@@ -74,17 +77,20 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 	}
 
 	return NotifierConfig{
-		HTTPAddress:          readEnvironment("NOTIFIER_HTTP_ADDRESS", ":8080"),
-		WorkerCount:          workerCount,
-		RequestTimeout:       requestTimeout,
-		MaxRetryAttempts:     maxRetryAttempts,
-		InitialRetryDelay:    initialRetryDelay,
-		LogLevel:             readEnvironment("NOTIFIER_LOG_LEVEL", "INFO"),
-		WebhookRegistrations: webhookRegistrations,
-		KafkaBrokers:         splitCommaSeparatedValues(readEnvironment("NOTIFIER_KAFKA_BROKERS", "")),
-		KafkaTopic:           readEnvironment("NOTIFIER_KAFKA_TOPIC", "subscriber-events"),
-		KafkaConsumerGroup:   readEnvironment("NOTIFIER_KAFKA_CONSUMER_GROUP", "webhook-notifier"),
-		KafkaDLQTopic:        readEnvironment("NOTIFIER_KAFKA_DLQ_TOPIC", "subscriber-events-dlq"),
+		HTTPAddress:               readEnvironment("NOTIFIER_HTTP_ADDRESS", ":8080"),
+		WorkerCount:               workerCount,
+		RequestTimeout:            requestTimeout,
+		MaxRetryAttempts:          maxRetryAttempts,
+		InitialRetryDelay:         initialRetryDelay,
+		LogLevel:                  readEnvironment("NOTIFIER_LOG_LEVEL", "INFO"),
+		WebhookRegistrations:      webhookRegistrations,
+		KafkaBrokers:              splitCommaSeparatedValues(readEnvironment("NOTIFIER_KAFKA_BROKERS", "")),
+		KafkaTopic:                readEnvironment("NOTIFIER_KAFKA_TOPIC", "subscriber-events"),
+		KafkaConsumerGroup:        readEnvironment("NOTIFIER_KAFKA_CONSUMER_GROUP", "webhook-notifier"),
+		KafkaDLQTopic:             readEnvironment("NOTIFIER_KAFKA_DLQ_TOPIC", "subscriber-events-dlq"),
+		PostgresConnection:        readEnvironment("NOTIFIER_POSTGRES_DSN", ""),
+		RegistrationResolveQuery:  readEnvironment("NOTIFIER_REGISTRATION_RESOLVE_QUERY", "SELECT webhook_url FROM webhook_registrations WHERE customer_id = $1 AND is_active = TRUE ORDER BY webhook_url"),
+		RegistrationSnapshotQuery: readEnvironment("NOTIFIER_REGISTRATION_SNAPSHOT_QUERY", "SELECT customer_id, webhook_url FROM webhook_registrations WHERE is_active = TRUE ORDER BY customer_id, webhook_url"),
 	}, nil
 }
 

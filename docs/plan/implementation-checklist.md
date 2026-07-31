@@ -38,7 +38,7 @@ This checklist translates the current requirement and planning documents into an
 ## Assumptions To Build Against
 
 - [x] Subscriber events are already published to Kafka
-- [ ] Webhook registrations are read directly from PostgreSQL for the MVP
+- [x] Webhook registrations are read directly from PostgreSQL for the MVP when database configuration is provided
 - [x] HTTP 2xx means delivery success
 - [x] Retryable failures initially include timeout, HTTP 5xx, and temporary network errors
 - [ ] HTTP 4xx responses are non-retryable unless clarified later
@@ -86,8 +86,9 @@ This checklist translates the current requirement and planning documents into an
 - [x] Implement a simple mocked webhook registration source for early development
 - [x] Support one or more endpoints per customer
 - [x] Make registrations externally configurable
-- [ ] Replace mocked registration source with PostgreSQL-backed reads
-- [ ] Define webhook registration table access pattern and query contract
+- [x] Add PostgreSQL-backed registration reads behind a registry interface
+- [x] Define webhook registration table access pattern and query contract
+- [ ] Make PostgreSQL-backed registration reads the only notifier runtime path
 - [ ] Add sample customer-to-webhook mapping for local testing
 
 ## Step 3: Mock Event Generator
@@ -246,7 +247,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Milestone 1: project bootstrap and local app startup
 - [x] Milestone 2: mock utilities working independently
 - [x] Milestone 3: notifier consumes Kafka and delivers basic webhooks
-- [ ] Milestone 4: PostgreSQL-backed registrations and fairness validation complete
+- [ ] Milestone 4: PostgreSQL-backed registrations are the only notifier runtime path and fairness validation is complete
 - [ ] Milestone 5: retry, DLQ, logging, metrics, and health complete
 - [ ] Milestone 6: Docker, Kubernetes manifests, and documentation complete
 - [ ] Milestone 7: benchmark validation and final cleanup complete

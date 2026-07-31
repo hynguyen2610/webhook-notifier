@@ -26,7 +26,7 @@ import (
 type Application struct {
 	config            config.NotifierConfig
 	logger            *slog.Logger
-	registry          *registration.MemoryRegistry
+	registry          registration.Registry
 	scheduler         *scheduler.RoundRobinScheduler
 	deliveryClient    *delivery.HTTPClient
 	retryPolicy       retry.ExponentialBackoffPolicy
@@ -49,10 +49,24 @@ type ingestResponse struct {
 }
 
 func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger) *Application {
+	registryStore := registration.Registry(registration.NewMemoryRegistry(applicationConfig.WebhookRegistrations))
+	if strings.TrimSpace(applicationConfig.PostgresConnection) != "" {
+		postgresRegistry, registryError := registration.NewPostgresRegistry(
+			applicationConfig.PostgresConnection,
+			applicationConfig.RegistrationResolveQuery,
+			applicationConfig.RegistrationSnapshotQuery,
+		)
+		if registryError != nil {
+			logger.Error("initialize postgres registration store", "error", registryError)
+		} else {
+			registryStore = postgresRegistry
+		}
+	}
+
 	application := &Application{
 		config:          applicationConfig,
 		logger:          logger,
-		registry:        registration.NewMemoryRegistry(applicationConfig.WebhookRegistrations),
+		registry:        registryStore,
 		scheduler:       scheduler.NewRoundRobinScheduler(applicationConfig.WorkerCount * 4),
 		deliveryClient:  delivery.NewHTTPClient(applicationConfig.RequestTimeout),
 		notifierMetrics: metrics.NewNotifierMetrics(),
@@ -153,8 +167,13 @@ func (application *Application) Run(requestContext context.Context) error {
 	defer cancelShutdown()
 
 	shutdownError := application.httpServer.Shutdown(shutdownContext)
+	closeError := application.registry.Close()
 	workerGroup.Wait()
-	return shutdownError
+	if shutdownError != nil {
+		return shutdownError
+	}
+
+	return closeError
 }
 
 func (application *Application) runWorker(requestContext context.Context, workerID int, scheduledJobs <-chan events.DeliveryJob) {
@@ -246,7 +265,13 @@ func (application *Application) handleStats(responseWriter http.ResponseWriter, 
 }
 
 func (application *Application) handleRegistrations(responseWriter http.ResponseWriter, _ *http.Request) {
-	httpx.WriteJSON(responseWriter, http.StatusOK, application.registry.Snapshot())
+	registrySnapshot, snapshotError := application.registry.Snapshot(context.Background())
+	if snapshotError != nil {
+		httpx.WriteError(responseWriter, http.StatusInternalServerError, snapshotError.Error())
+		return
+	}
+
+	httpx.WriteJSON(responseWriter, http.StatusOK, registrySnapshot)
 }
 
 func (application *Application) handleDeadLetters(responseWriter http.ResponseWriter, _ *http.Request) {
@@ -310,7 +335,7 @@ func (application *Application) ingestEvents(subscriberEvents []events.Subscribe
 			return createdJobs, validationError
 		}
 
-		webhookURLs, resolveError := application.registry.ResolveWebhookURLs(subscriberEvent.CustomerID)
+		webhookURLs, resolveError := application.registry.ResolveWebhookURLs(context.Background(), subscriberEvent.CustomerID)
 		if resolveError != nil {
 			return createdJobs, resolveError
 		}
