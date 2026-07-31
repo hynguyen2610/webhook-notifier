@@ -1,6 +1,11 @@
 package registration
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var ErrCustomerNotRegistered = errors.New("customer not registered")
 
 type Registry interface {
 	ResolveWebhookURLs(requestContext context.Context, customerID string) ([]string, error)

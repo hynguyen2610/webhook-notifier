@@ -1,7 +1,7 @@
 package config
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -16,7 +16,6 @@ type NotifierConfig struct {
 	MaxRetryAttempts          int
 	InitialRetryDelay         time.Duration
 	LogLevel                  string
-	WebhookRegistrations      map[string][]string
 	KafkaBrokers              []string
 	KafkaTopic                string
 	KafkaConsumerGroup        string
@@ -42,20 +41,6 @@ type MockGeneratorConfig struct {
 }
 
 func LoadNotifierConfig() (NotifierConfig, error) {
-	defaultRegistrations := map[string][]string{
-		"customer-a": {"http://localhost:8082/webhook/customer-a"},
-		"customer-b": {"http://localhost:8082/webhook/customer-b"},
-		"customer-c": {"http://localhost:8082/webhook/customer-c"},
-	}
-
-	webhookRegistrationsJSON := readEnvironment("NOTIFIER_WEBHOOK_REGISTRATIONS", "")
-	webhookRegistrations := defaultRegistrations
-	if webhookRegistrationsJSON != "" {
-		if parseError := json.Unmarshal([]byte(webhookRegistrationsJSON), &webhookRegistrations); parseError != nil {
-			return NotifierConfig{}, fmt.Errorf("parse NOTIFIER_WEBHOOK_REGISTRATIONS: %w", parseError)
-		}
-	}
-
 	workerCount, workerCountError := parseIntEnvironment("NOTIFIER_WORKER_COUNT", 4)
 	if workerCountError != nil {
 		return NotifierConfig{}, workerCountError
@@ -76,6 +61,11 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 		return NotifierConfig{}, retryDelayError
 	}
 
+	postgresConnection := readEnvironment("NOTIFIER_POSTGRES_DSN", "")
+	if strings.TrimSpace(postgresConnection) == "" {
+		return NotifierConfig{}, errors.New("NOTIFIER_POSTGRES_DSN is required")
+	}
+
 	return NotifierConfig{
 		HTTPAddress:               readEnvironment("NOTIFIER_HTTP_ADDRESS", ":8080"),
 		WorkerCount:               workerCount,
@@ -83,12 +73,11 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 		MaxRetryAttempts:          maxRetryAttempts,
 		InitialRetryDelay:         initialRetryDelay,
 		LogLevel:                  readEnvironment("NOTIFIER_LOG_LEVEL", "INFO"),
-		WebhookRegistrations:      webhookRegistrations,
 		KafkaBrokers:              splitCommaSeparatedValues(readEnvironment("NOTIFIER_KAFKA_BROKERS", "")),
 		KafkaTopic:                readEnvironment("NOTIFIER_KAFKA_TOPIC", "subscriber-events"),
 		KafkaConsumerGroup:        readEnvironment("NOTIFIER_KAFKA_CONSUMER_GROUP", "webhook-notifier"),
 		KafkaDLQTopic:             readEnvironment("NOTIFIER_KAFKA_DLQ_TOPIC", "subscriber-events-dlq"),
-		PostgresConnection:        readEnvironment("NOTIFIER_POSTGRES_DSN", ""),
+		PostgresConnection:        postgresConnection,
 		RegistrationResolveQuery:  readEnvironment("NOTIFIER_REGISTRATION_RESOLVE_QUERY", "SELECT webhook_url FROM webhook_registrations WHERE customer_id = $1 AND is_active = TRUE ORDER BY webhook_url"),
 		RegistrationSnapshotQuery: readEnvironment("NOTIFIER_REGISTRATION_SNAPSHOT_QUERY", "SELECT customer_id, webhook_url FROM webhook_registrations WHERE is_active = TRUE ORDER BY customer_id, webhook_url"),
 	}, nil

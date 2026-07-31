@@ -18,7 +18,10 @@ func main() {
 	}
 
 	logger := logging.NewLogger(notifierConfig.LogLevel)
-	application := notifier.NewApplication(notifierConfig, logger)
+	application, applicationError := notifier.NewApplication(notifierConfig, logger)
+	if applicationError != nil {
+		log.Fatalf("initialize notifier: %v", applicationError)
+	}
 
 	requestContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopSignals()

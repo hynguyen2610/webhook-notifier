@@ -48,19 +48,18 @@ type ingestResponse struct {
 	CreatedJobs    int `json:"createdJobs"`
 }
 
-func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger) *Application {
-	registryStore := registration.Registry(registration.NewMemoryRegistry(applicationConfig.WebhookRegistrations))
-	if strings.TrimSpace(applicationConfig.PostgresConnection) != "" {
-		postgresRegistry, registryError := registration.NewPostgresRegistry(
-			applicationConfig.PostgresConnection,
-			applicationConfig.RegistrationResolveQuery,
-			applicationConfig.RegistrationSnapshotQuery,
-		)
-		if registryError != nil {
-			logger.Error("initialize postgres registration store", "error", registryError)
-		} else {
-			registryStore = postgresRegistry
-		}
+func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger) (*Application, error) {
+	registryStore, registryError := registration.NewPostgresRegistry(
+		applicationConfig.PostgresConnection,
+		applicationConfig.RegistrationResolveQuery,
+		applicationConfig.RegistrationSnapshotQuery,
+	)
+	if registryError != nil {
+		return nil, registryError
+	}
+
+	if pingError := registryStore.Ping(context.Background()); pingError != nil {
+		return nil, pingError
 	}
 
 	application := &Application{
@@ -102,7 +101,7 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 		Handler: mux,
 	}
 
-	return application
+	return application, nil
 }
 
 func (application *Application) Run(requestContext context.Context) error {
