@@ -35,53 +35,53 @@ This checklist translates the current requirement and planning documents into an
 
 ## Phase 0: Project Setup
 
-- [ ] Initialize Go module and project structure
-- [ ] Add `cmd/` entrypoints for:
-  - [ ] notifier
-  - [ ] mock-event-generator
-  - [ ] mock-webhook-receiver
-- [ ] Add internal package layout for:
-  - [ ] configuration
-  - [ ] logging
-  - [ ] HTTP server
-  - [ ] Kafka
-  - [ ] scheduler
+- [x] Initialize Go module and project structure
+- [x] Add `cmd/` entrypoints for:
+  - [x] notifier
+  - [x] mock-event-generator
+  - [x] mock-webhook-receiver
+- [x] Add internal package layout for:
+  - [x] configuration
+  - [x] logging
+  - [x] HTTP server
+  - [x] Kafka
+  - [x] scheduler
   - [ ] rate limiter
   - [ ] worker pool
-  - [ ] retry
-  - [ ] delivery
+  - [x] retry
+  - [x] delivery
   - [ ] metrics
-- [ ] Add graceful shutdown wiring
-- [ ] Add configuration loading from environment variables or config file
-- [ ] Add structured logging baseline
+- [x] Add graceful shutdown wiring
+- [x] Add configuration loading from environment variables or config file
+- [x] Add structured logging baseline
 - [ ] Add README bootstrap section with local run instructions
 
 ## Phase 1: Core Domain And Contracts
 
-- [ ] Define subscriber event model
-- [ ] Define webhook delivery job model
+- [x] Define subscriber event model
+- [x] Define webhook delivery job model
 - [ ] Define retry metadata model
-- [ ] Define DLQ message model
-- [ ] Define customer webhook endpoint configuration model
+- [x] Define DLQ message model
+- [x] Define customer webhook endpoint configuration model
 - [ ] Define scheduler strategy interface
 - [ ] Define rate limiter interface
 - [ ] Define delivery client interface
 
 ## Phase 2: Mock Webhook Registration Source
 
-- [ ] Implement a simple mocked webhook registration source
-- [ ] Support one or more endpoints per customer
-- [ ] Make registrations externally configurable
+- [x] Implement a simple mocked webhook registration source
+- [x] Support one or more endpoints per customer
+- [x] Make registrations externally configurable
 - [ ] Add sample customer-to-webhook mapping for local testing
 
 ## Phase 3: Mock Event Generator
 
-- [ ] Implement HTTP server for generator utility
+- [x] Implement HTTP server for generator utility
 - [ ] Implement Kafka producer
-- [ ] Add `POST /generate`
-- [ ] Add `POST /generate/bulk`
-- [ ] Add `POST /scenario/whale`
-- [ ] Add `POST /scenario/mixed`
+- [x] Add `POST /generate`
+- [x] Add `POST /generate/bulk`
+- [x] Add `POST /scenario/whale`
+- [x] Add `POST /scenario/mixed`
 - [ ] Generate deterministic test data when seed is provided
 - [ ] Validate generator requests and return useful errors
 - [ ] Add configuration for broker, topic, customer count, and seed
@@ -89,20 +89,20 @@ This checklist translates the current requirement and planning documents into an
 
 ## Phase 4: Mock Webhook Receiver
 
-- [ ] Implement HTTP server for receiver utility
-- [ ] Add `POST /webhook/{customerId}`
-- [ ] Add `POST /config/{customerId}`
-- [ ] Add `GET /stats`
-- [ ] Add `POST /stats/reset`
+- [x] Implement HTTP server for receiver utility
+- [x] Add `POST /webhook/{customerId}`
+- [x] Add `POST /config/{customerId}`
+- [x] Add `GET /stats`
+- [x] Add `POST /stats/reset`
 - [ ] Support modes:
-  - [ ] success
-  - [ ] timeout
-  - [ ] error500
-  - [ ] error400
-  - [ ] unauthorized
-  - [ ] random
-- [ ] Track received, success, failed, and average latency statistics
-- [ ] Allow per-customer response behavior
+  - [x] success
+  - [x] timeout
+  - [x] error500
+  - [x] error400
+  - [x] unauthorized
+  - [x] random
+- [x] Track received, success, failed, and average latency statistics
+- [x] Allow per-customer response behavior
 
 ## Phase 5: Kafka Consumer
 
@@ -117,10 +117,10 @@ This checklist translates the current requirement and planning documents into an
 
 ## Phase 6: Fair Scheduler
 
-- [ ] Implement per-customer queues
-- [ ] Implement queue manager
-- [ ] Implement round-robin scheduler
-- [ ] Ensure one noisy customer cannot fully starve others
+- [x] Implement per-customer queues
+- [x] Implement queue manager
+- [x] Implement round-robin scheduler
+- [x] Ensure one noisy customer cannot fully starve others
 - [ ] Expose scheduler extension point for:
   - [ ] weighted round robin
   - [ ] deficit round robin
@@ -136,34 +136,34 @@ This checklist translates the current requirement and planning documents into an
 
 ## Phase 8: Worker Pool And Delivery
 
-- [ ] Implement configurable worker pool
-- [ ] Implement job dispatch channel
-- [ ] Implement HTTP POST webhook delivery
-- [ ] Add request timeout configuration
-- [ ] Capture delivery duration and response status
-- [ ] Treat HTTP 2xx as success
-- [ ] Classify retryable vs non-retryable failures
-- [ ] Preserve customer isolation when one endpoint is slow or failing
+- [x] Implement configurable worker pool
+- [x] Implement job dispatch channel
+- [x] Implement HTTP POST webhook delivery
+- [x] Add request timeout configuration
+- [x] Capture delivery duration and response status
+- [x] Treat HTTP 2xx as success
+- [x] Classify retryable vs non-retryable failures
+- [x] Preserve customer isolation when one endpoint is slow or failing
 
 ## Phase 9: Retry And DLQ
 
-- [ ] Implement retry manager
-- [ ] Implement exponential backoff policy
-- [ ] Make retry attempts and delays configurable
-- [ ] Requeue retryable jobs after delay
+- [x] Implement retry manager
+- [x] Implement exponential backoff policy
+- [x] Make retry attempts and delays configurable
+- [x] Requeue retryable jobs after delay
 - [ ] Publish exhausted jobs to DLQ topic
-- [ ] Include failure reason and retry count in DLQ message
+- [x] Include failure reason and retry count in DLQ message
 - [ ] Add tests for retry transitions and DLQ routing
 
 ## Phase 10: Observability
 
-- [ ] Add structured logs containing:
-  - [ ] event ID
-  - [ ] customer ID
-  - [ ] webhook URL
-  - [ ] retry count
-  - [ ] delivery status
-  - [ ] processing duration
+- [x] Add structured logs containing:
+  - [x] event ID
+  - [x] customer ID
+  - [x] webhook URL
+  - [x] retry count
+  - [x] delivery status
+  - [x] processing duration
 - [ ] Add metrics for:
   - [ ] received events
   - [ ] delivered events
@@ -172,7 +172,7 @@ This checklist translates the current requirement and planning documents into an
   - [ ] DLQ count
   - [ ] request latency
   - [ ] throughput
-- [ ] Add `GET /health`
+- [x] Add `GET /health`
 - [ ] Add `GET /metrics`
 
 ## Phase 11: Packaging And Local Environment
@@ -241,8 +241,8 @@ This checklist translates the current requirement and planning documents into an
 
 ## Suggested Delivery Milestones
 
-- [ ] Milestone 1: project bootstrap and local app startup
-- [ ] Milestone 2: mock utilities working independently
+- [x] Milestone 1: project bootstrap and local app startup
+- [x] Milestone 2: mock utilities working independently
 - [ ] Milestone 3: notifier consumes Kafka and delivers basic webhooks
 - [ ] Milestone 4: fairness, rate limiting, and worker pool complete
 - [ ] Milestone 5: retry, DLQ, logging, metrics, and health complete
