@@ -1,0 +1,28 @@
+flowchart LR
+
+Consumer
+
+QueueA["Queue A"]
+
+QueueB["Queue B"]
+
+QueueC["Queue C"]
+
+RR["Round Robin Strategy"]
+
+Limiter["Rate Limiter"]
+
+Workers
+
+
+Consumer --> QueueA
+Consumer --> QueueB
+Consumer --> QueueC
+
+QueueA --> RR
+QueueB --> RR
+QueueC --> RR
+
+RR --> Limiter
+
+Limiter --> Workers

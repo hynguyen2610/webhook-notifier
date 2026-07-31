@@ -1,0 +1,65 @@
+flowchart TB
+
+subgraph "Developer Machine"
+
+Postman["Postman / curl"]
+
+end
+
+subgraph "Kubernetes Cluster"
+
+subgraph "Testing Utilities"
+
+Generator["Mock Event Generator\nDeployment"]
+
+Receiver["Mock Webhook Receiver\nDeployment"]
+
+end
+
+subgraph "Messaging"
+
+Kafka["Kafka Cluster"]
+
+DLQ["DLQ Topic"]
+
+end
+
+subgraph "Webhook Notifier"
+
+Notifier1["Notifier Pod"]
+
+Notifier2["Notifier Pod"]
+
+Notifier3["Notifier Pod"]
+
+end
+
+subgraph "Observability"
+
+Prometheus["Prometheus"]
+
+Grafana["Grafana"]
+
+end
+
+end
+
+Postman --> Generator
+
+Generator --> Kafka
+
+Kafka --> Notifier1
+Kafka --> Notifier2
+Kafka --> Notifier3
+
+Notifier1 --> Receiver
+Notifier2 --> Receiver
+Notifier3 --> Receiver
+
+Notifier1 --> Prometheus
+Notifier2 --> Prometheus
+Notifier3 --> Prometheus
+
+Notifier1 --> DLQ
+Notifier2 --> DLQ
+Notifier3 --> DLQ

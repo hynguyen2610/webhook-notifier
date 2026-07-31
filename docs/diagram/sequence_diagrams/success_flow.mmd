@@ -1,0 +1,15 @@
+sequenceDiagram
+
+Producer->>Kafka: Publish Event
+
+Kafka->>Consumer: Consume
+
+Consumer->>Scheduler: Add Job
+
+Scheduler->>Worker: Dispatch
+
+Worker->>Customer: HTTP POST
+
+Customer-->>Worker: 200 OK
+
+Worker->>Kafka: Commit Offset

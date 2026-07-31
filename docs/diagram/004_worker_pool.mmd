@@ -1,0 +1,23 @@
+flowchart LR
+
+Scheduler
+
+Jobs["Job Channel"]
+
+W1["Worker 1"]
+
+W2["Worker 2"]
+
+W3["Worker 3"]
+
+HTTP["HTTP Client"]
+
+Scheduler --> Jobs
+
+Jobs --> W1
+Jobs --> W2
+Jobs --> W3
+
+W1 --> HTTP
+W2 --> HTTP
+W3 --> HTTP
