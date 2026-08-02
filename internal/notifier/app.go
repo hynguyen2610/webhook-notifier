@@ -78,11 +78,13 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 	if len(applicationConfig.KafkaBrokers) > 0 {
 		application.kafkaConsumer = kafka.NewEventConsumer(
 			applicationConfig.KafkaBrokers,
+			applicationConfig.KafkaHostOverrides,
 			applicationConfig.KafkaTopic,
 			applicationConfig.KafkaConsumerGroup,
 		)
 		application.deadLetterWriter = kafka.NewDeadLetterPublisher(
 			applicationConfig.KafkaBrokers,
+			applicationConfig.KafkaHostOverrides,
 			applicationConfig.KafkaDLQTopic,
 		)
 	}

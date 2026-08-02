@@ -17,6 +17,7 @@ type NotifierConfig struct {
 	InitialRetryDelay         time.Duration
 	LogLevel                  string
 	KafkaBrokers              []string
+	KafkaHostOverrides        map[string]string
 	KafkaTopic                string
 	KafkaConsumerGroup        string
 	KafkaDLQTopic             string
@@ -37,6 +38,7 @@ type MockGeneratorConfig struct {
 	RandomSeed           int64
 	LogLevel             string
 	KafkaBrokers         []string
+	KafkaHostOverrides   map[string]string
 	KafkaTopic           string
 }
 
@@ -67,13 +69,14 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 	}
 
 	return NotifierConfig{
-		HTTPAddress:               readEnvironment("NOTIFIER_HTTP_ADDRESS", ":8080"),
+		HTTPAddress:               readEnvironment("NOTIFIER_HTTP_ADDRESS", ":28080"),
 		WorkerCount:               workerCount,
 		RequestTimeout:            requestTimeout,
 		MaxRetryAttempts:          maxRetryAttempts,
 		InitialRetryDelay:         initialRetryDelay,
 		LogLevel:                  readEnvironment("NOTIFIER_LOG_LEVEL", "INFO"),
 		KafkaBrokers:              splitCommaSeparatedValues(readEnvironment("NOTIFIER_KAFKA_BROKERS", "")),
+		KafkaHostOverrides:        parseKeyValueMapEnvironment(readEnvironment("NOTIFIER_KAFKA_HOST_OVERRIDES", "")),
 		KafkaTopic:                readEnvironment("NOTIFIER_KAFKA_TOPIC", "subscriber-events"),
 		KafkaConsumerGroup:        readEnvironment("NOTIFIER_KAFKA_CONSUMER_GROUP", "webhook-notifier"),
 		KafkaDLQTopic:             readEnvironment("NOTIFIER_KAFKA_DLQ_TOPIC", "subscriber-events-dlq"),
@@ -85,7 +88,7 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 
 func LoadMockReceiverConfig() (MockReceiverConfig, error) {
 	return MockReceiverConfig{
-		HTTPAddress: readEnvironment("RECEIVER_HTTP_ADDRESS", ":8082"),
+		HTTPAddress: readEnvironment("RECEIVER_HTTP_ADDRESS", ":28082"),
 		LogLevel:    readEnvironment("RECEIVER_LOG_LEVEL", "INFO"),
 	}, nil
 }
@@ -102,12 +105,13 @@ func LoadMockGeneratorConfig() (MockGeneratorConfig, error) {
 	}
 
 	return MockGeneratorConfig{
-		HTTPAddress:          readEnvironment("GENERATOR_HTTP_ADDRESS", ":8081"),
-		NotifierBaseURL:      strings.TrimRight(readEnvironment("GENERATOR_NOTIFIER_BASE_URL", "http://localhost:8080"), "/"),
+		HTTPAddress:          readEnvironment("GENERATOR_HTTP_ADDRESS", ":28081"),
+		NotifierBaseURL:      strings.TrimRight(readEnvironment("GENERATOR_NOTIFIER_BASE_URL", "http://localhost:28080"), "/"),
 		DefaultCustomerCount: defaultCustomerCount,
 		RandomSeed:           randomSeed,
 		LogLevel:             readEnvironment("GENERATOR_LOG_LEVEL", "INFO"),
 		KafkaBrokers:         splitCommaSeparatedValues(readEnvironment("GENERATOR_KAFKA_BROKERS", "")),
+		KafkaHostOverrides:   parseKeyValueMapEnvironment(readEnvironment("GENERATOR_KAFKA_HOST_OVERRIDES", "")),
 		KafkaTopic:           readEnvironment("GENERATOR_KAFKA_TOPIC", "subscriber-events"),
 	}, nil
 }
@@ -166,4 +170,37 @@ func splitCommaSeparatedValues(rawValue string) []string {
 	}
 
 	return parts
+}
+
+func parseKeyValueMapEnvironment(rawValue string) map[string]string {
+	if strings.TrimSpace(rawValue) == "" {
+		return nil
+	}
+
+	keyValueMap := make(map[string]string)
+	for _, rawEntry := range strings.Split(rawValue, ",") {
+		trimmedEntry := strings.TrimSpace(rawEntry)
+		if trimmedEntry == "" {
+			continue
+		}
+
+		key, value, found := strings.Cut(trimmedEntry, "=")
+		if !found {
+			continue
+		}
+
+		trimmedKey := strings.TrimSpace(key)
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedKey == "" || trimmedValue == "" {
+			continue
+		}
+
+		keyValueMap[trimmedKey] = trimmedValue
+	}
+
+	if len(keyValueMap) == 0 {
+		return nil
+	}
+
+	return keyValueMap
 }

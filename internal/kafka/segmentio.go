@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	segmentio "github.com/segmentio/kafka-go"
@@ -24,34 +25,39 @@ type EventConsumer struct {
 	reader *segmentio.Reader
 }
 
-func NewEventPublisher(brokers []string, topic string) *EventPublisher {
+type StaticResolver struct {
+	hostOverrides map[string]string
+}
+
+func NewEventPublisher(brokers []string, hostOverrides map[string]string, topic string) *EventPublisher {
 	return &EventPublisher{
-		writer: &segmentio.Writer{
-			Addr:                   segmentio.TCP(brokers...),
-			Topic:                  topic,
-			Balancer:               &segmentio.LeastBytes{},
-			RequiredAcks:           segmentio.RequireOne,
-			AllowAutoTopicCreation: true,
-		},
+		writer: segmentio.NewWriter(segmentio.WriterConfig{
+			Brokers:      brokers,
+			Dialer:       newDialer(hostOverrides),
+			Topic:        topic,
+			Balancer:     &segmentio.LeastBytes{},
+			RequiredAcks: int(segmentio.RequireOne),
+		}),
 	}
 }
 
-func NewDeadLetterPublisher(brokers []string, topic string) *DeadLetterPublisher {
+func NewDeadLetterPublisher(brokers []string, hostOverrides map[string]string, topic string) *DeadLetterPublisher {
 	return &DeadLetterPublisher{
-		writer: &segmentio.Writer{
-			Addr:                   segmentio.TCP(brokers...),
-			Topic:                  topic,
-			Balancer:               &segmentio.LeastBytes{},
-			RequiredAcks:           segmentio.RequireOne,
-			AllowAutoTopicCreation: true,
-		},
+		writer: segmentio.NewWriter(segmentio.WriterConfig{
+			Brokers:      brokers,
+			Dialer:       newDialer(hostOverrides),
+			Topic:        topic,
+			Balancer:     &segmentio.LeastBytes{},
+			RequiredAcks: int(segmentio.RequireOne),
+		}),
 	}
 }
 
-func NewEventConsumer(brokers []string, topic string, consumerGroup string) *EventConsumer {
+func NewEventConsumer(brokers []string, hostOverrides map[string]string, topic string, consumerGroup string) *EventConsumer {
 	return &EventConsumer{
 		reader: segmentio.NewReader(segmentio.ReaderConfig{
 			Brokers:     brokers,
+			Dialer:      newDialer(hostOverrides),
 			Topic:       topic,
 			GroupID:     consumerGroup,
 			MinBytes:    1,
@@ -134,4 +140,23 @@ func (publisher *EventPublisher) Close() error {
 
 func (publisher *DeadLetterPublisher) Close() error {
 	return publisher.writer.Close()
+}
+
+func newDialer(hostOverrides map[string]string) *segmentio.Dialer {
+	if len(hostOverrides) == 0 {
+		return nil
+	}
+
+	return &segmentio.Dialer{
+		Timeout:  10 * time.Second,
+		Resolver: StaticResolver{hostOverrides: hostOverrides},
+	}
+}
+
+func (resolver StaticResolver) LookupHost(_ context.Context, host string) ([]string, error) {
+	if overrideAddress, found := resolver.hostOverrides[host]; found {
+		return []string{overrideAddress}, nil
+	}
+
+	return net.DefaultResolver.LookupHost(context.Background(), host)
 }

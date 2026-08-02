@@ -68,7 +68,7 @@ This checklist translates the current requirement and planning documents into an
 - [x] Add graceful shutdown wiring
 - [x] Add configuration loading from environment variables or config file
 - [x] Add structured logging baseline
-- [ ] Add README bootstrap section with local run instructions
+- [x] Add README bootstrap section with local run instructions
 
 ## Step 1: Core Domain And Contracts
 

@@ -50,7 +50,11 @@ func NewApplication(applicationConfig config.MockGeneratorConfig, logger *slog.L
 	}
 
 	if len(applicationConfig.KafkaBrokers) > 0 {
-		application.publisher = kafka.NewEventPublisher(applicationConfig.KafkaBrokers, applicationConfig.KafkaTopic)
+		application.publisher = kafka.NewEventPublisher(
+			applicationConfig.KafkaBrokers,
+			applicationConfig.KafkaHostOverrides,
+			applicationConfig.KafkaTopic,
+		)
 	}
 
 	mux := http.NewServeMux()
