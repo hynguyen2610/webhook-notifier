@@ -68,9 +68,9 @@ print_health_summary() {
   local notifier_status
   local generator_status
 
-  receiver_status="$(health_status_label "receiver" "${RECEIVER_BASE_URL}/health")"
-  notifier_status="$(health_status_label "notifier" "${NOTIFIER_BASE_URL}/health")"
-  generator_status="$(health_status_label "generator" "${GENERATOR_BASE_URL}/health")"
+  receiver_status="$(health_status_label "receiver" "${RECEIVER_BASE_URL}/health" || true)"
+  notifier_status="$(health_status_label "notifier" "${NOTIFIER_BASE_URL}/health" || true)"
+  generator_status="$(health_status_label "generator" "${GENERATOR_BASE_URL}/health" || true)"
 
   printf '\r[local-stack] health %s  %s  %s  %bupdated:%s%b' \
     "${receiver_status}" \
