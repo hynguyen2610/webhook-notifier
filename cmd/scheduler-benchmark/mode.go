@@ -31,7 +31,7 @@ func parseBenchmarkOptions() (benchmarkOptions, error) {
 	}
 
 	modeFlag := flag.String("mode", defaultMode, "benchmark mode: scheduler or app")
-	includeLargeScenarioFlag := flag.Bool("include-large-fairness-case", defaultIncludeLargeScenario, "include the 200000-message whale fairness scenario")
+	includeLargeScenarioFlag := flag.Bool("include-large-fairness-case", defaultIncludeLargeScenario, "include the large fairness scenarios, including the 200000-message whale cases")
 	flag.Parse()
 
 	selectedMode := benchmarkMode(strings.ToLower(strings.TrimSpace(*modeFlag)))

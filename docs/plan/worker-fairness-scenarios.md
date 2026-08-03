@@ -52,6 +52,27 @@ Record for each worker count:
 - per-customer finish duration
 - per-customer share of the first `20` completed jobs
 
+## Scenario 3
+
+Name: `two-whales-200000-two-non-whales-1000`
+
+Customer message counts:
+
+- `customer-a`: `200000` messages
+- `customer-b`: `200000` messages
+- `customer-c`: `1000` messages
+- `customer-d`: `1000` messages
+
+Record for each worker count:
+
+- total `jobs/sec`
+- total duration
+- per-customer first completion duration
+- per-customer finish duration
+- per-customer share of the first `20` completed jobs
+- whale-versus-non-whale full completion gap
+- whether the non-whales fully finish before the whales
+
 ## Benchmark Notes
 
 - The fairness benchmark uses a synthetic in-process delivery step instead of
@@ -59,3 +80,6 @@ Record for each worker count:
   locally.
 - The main comparison targets are relative throughput by worker count and how
   quickly the two normal customers finish compared with the whales.
+- The `two-whales-200000-two-non-whales-1000` case is intended as a deeper
+  fairness run, not a day-to-day smoke run, and should stay behind the large
+  fairness opt-in flag.

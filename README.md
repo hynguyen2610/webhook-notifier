@@ -432,6 +432,11 @@ How to interpret the output:
 - `app` mode includes enqueue, in-memory queue claim, scheduler handoff, worker execution, and synthetic delivery work
 - `app` mode still excludes PostgreSQL queue behavior, notifier HTTP ingest, real outbound HTTP delivery cost, and failure-path retry or DLQ behavior
 
+Large opt-in fairness scenarios currently include:
+
+- `two-whales-200000-two-normals-2`
+- `two-whales-200000-two-non-whales-1000`
+
 Report structure decision:
 
 - keep one HTML report file per run
@@ -441,7 +446,7 @@ Expected runtime on this repository as measured on `2026-08-03` with the large f
 
 - scheduler smoke run: about `13s`
 - app smoke run: about `7s`
-- large fairness scenario enabled: expect materially longer runtime because the run adds the `two-whales-200000-two-normals-2` case in addition to the smoke scenario
+- large fairness scenario enabled: expect materially longer runtime because the run adds `two-whales-200000-two-normals-2` and `two-whales-200000-two-non-whales-1000` in addition to the smoke scenario
 
 Example smoke-run report files generated on `2026-08-03`:
 

@@ -83,24 +83,45 @@ func fairnessScenarioDefinitions(options benchmarkOptions) []fairnessScenarioDef
 		},
 	}
 	if options.includeLargeScenario {
-		definitions = append(definitions, fairnessScenarioDefinition{
-			name:        "two-whales-200000-two-normals-2",
-			description: "Two whale customers with 200000 messages each and two normal customers with 2 messages each.",
-			eventsPerCustomer: map[string]int{
-				"customer-a": 200000,
-				"customer-b": 200000,
-				"customer-c": 2,
-				"customer-d": 2,
+		definitions = append(
+			definitions,
+			fairnessScenarioDefinition{
+				name:        "two-whales-200000-two-normals-2",
+				description: "Two whale customers with 200000 messages each and two normal customers with 2 messages each.",
+				eventsPerCustomer: map[string]int{
+					"customer-a": 200000,
+					"customer-b": 200000,
+					"customer-c": 2,
+					"customer-d": 2,
+				},
+				customerSegments: map[string]string{
+					"customer-a": "whale",
+					"customer-b": "whale",
+					"customer-c": "non-whale",
+					"customer-d": "non-whale",
+				},
+				workerCounts:            []int{1, 4, 8},
+				syntheticWorkIterations: 64,
 			},
-			customerSegments: map[string]string{
-				"customer-a": "whale",
-				"customer-b": "whale",
-				"customer-c": "non-whale",
-				"customer-d": "non-whale",
+			fairnessScenarioDefinition{
+				name:        "two-whales-200000-two-non-whales-1000",
+				description: "Two whale customers with 200000 messages each and two non-whale customers with 1000 messages each.",
+				eventsPerCustomer: map[string]int{
+					"customer-a": 200000,
+					"customer-b": 200000,
+					"customer-c": 1000,
+					"customer-d": 1000,
+				},
+				customerSegments: map[string]string{
+					"customer-a": "whale",
+					"customer-b": "whale",
+					"customer-c": "non-whale",
+					"customer-d": "non-whale",
+				},
+				workerCounts:            []int{1, 4, 8},
+				syntheticWorkIterations: 64,
 			},
-			workerCounts:            []int{1, 4, 8},
-			syntheticWorkIterations: 64,
-		})
+		)
 	}
 	return definitions
 }

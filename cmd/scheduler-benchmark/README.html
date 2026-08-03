@@ -166,6 +166,7 @@ pre{
     <ul>
       <li><code>two-whales-100-two-normals-2</code>: <code>100</code>, <code>100</code>, <code>2</code>, and <code>2</code> queued messages across four customers</li>
       <li><code>two-whales-200000-two-normals-2</code>: <code>200000</code>, <code>200000</code>, <code>2</code>, and <code>2</code> queued messages across four customers</li>
+      <li><code>two-whales-200000-two-non-whales-1000</code>: <code>200000</code>, <code>200000</code>, <code>1000</code>, and <code>1000</code> queued messages across four customers</li>
     </ul>
     <p>Each fairness scenario runs with worker counts <code>1</code>, <code>4</code>, and <code>8</code>.</p>
   </section>
@@ -196,7 +197,7 @@ loadtest/reports/scheduler-benchmark-app-YYYYMMDD-HHMMSS.html</code></pre>
       <li><code>scheduler</code> mode: about <code>13s</code></li>
       <li><code>app</code> mode: about <code>7s</code></li>
     </ul>
-    <p>The large <code>two-whales-200000-two-normals-2</code> case remains opt-in and should be treated as a slower full run because it adds a much heavier fairness scenario on top of the smoke scenario.</p>
+    <p>The large fairness cases, including <code>two-whales-200000-two-normals-2</code> and <code>two-whales-200000-two-non-whales-1000</code>, remain opt-in and should be treated as slower full runs because they add much heavier scenarios on top of the smoke scenario.</p>
     <p>Example report paths generated on <code>2026-08-03</code>:</p>
     <pre><code>loadtest/reports/scheduler-benchmark-scheduler-20260803-130540.html
 loadtest/reports/scheduler-benchmark-app-20260803-130553.html</code></pre>
