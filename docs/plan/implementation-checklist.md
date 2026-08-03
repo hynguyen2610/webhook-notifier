@@ -206,6 +206,8 @@ This checklist translates the current requirement and planning documents into an
 - [x] Add unit tests for scheduler behaviour
 - [x] Add unit tests for retry classification and backoff
 - [x] Add unit tests for PostgreSQL registration lookup
+- [x] Add PostgreSQL-backed integration tests for real registration queries
+- [x] Add Kafka-backed integration tests for publish and consume transport
 - [x] Add integration tests for end-to-end happy path
 - [x] Add integration tests for retry then success
 - [x] Add integration tests for retry exhaustion to DLQ

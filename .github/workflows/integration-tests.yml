@@ -19,5 +19,66 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run notifier integration tests
-        run: go test ./internal/notifier -run '^TestNotifierIntegration' -count=1
+      - name: Start PostgreSQL
+        run: |
+          docker run -d \
+            --name webhook-notifier-postgres \
+            -e POSTGRES_PASSWORD=password \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_DB=webhook_notifier \
+            -p 5432:5432 \
+            postgres:17
+
+      - name: Wait for PostgreSQL
+        run: |
+          for attempt in $(seq 1 30); do
+            if docker exec webhook-notifier-postgres pg_isready -U postgres -d webhook_notifier; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs webhook-notifier-postgres
+          exit 1
+
+      - name: Start Redpanda
+        run: |
+          docker run -d \
+            --name webhook-notifier-redpanda \
+            -p 9092:9092 \
+            redpandadata/redpanda:v25.1.2 \
+            redpanda start \
+            --mode dev-container \
+            --overprovisioned \
+            --smp 1 \
+            --memory 512M \
+            --reserve-memory 0M \
+            --check=false \
+            --node-id 0 \
+            --kafka-addr 0.0.0.0:9092 \
+            --advertise-kafka-addr 127.0.0.1:9092
+
+      - name: Wait for Redpanda
+        run: |
+          for attempt in $(seq 1 30); do
+            if docker exec webhook-notifier-redpanda rpk cluster health >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs webhook-notifier-redpanda
+          exit 1
+
+      - name: Run Go integration tests with race detector
+        env:
+          TEST_POSTGRES_DSN: postgres://postgres:password@127.0.0.1:5432/webhook_notifier?sslmode=disable
+          TEST_KAFKA_BROKERS: 127.0.0.1:9092
+        run: |
+          go test -race ./internal/notifier -run '^TestNotifierIntegration' -count=1
+          go test -race ./internal/registration -run '^TestPostgresRegistryIntegration' -count=1
+          go test -race ./internal/kafka -run '^TestKafkaIntegration' -count=1
+
+      - name: Show container logs on failure
+        if: failure()
+        run: |
+          docker logs webhook-notifier-postgres || true
+          docker logs webhook-notifier-redpanda || true
