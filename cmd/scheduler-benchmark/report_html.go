@@ -38,7 +38,17 @@ func buildHTMLReport(reportTime time.Time, benchmarkOptions benchmarkOptions, sc
 	builder.WriteString(".meta{margin-top:14px;font-size:13px;color:rgba(255,255,255,.76);}\n")
 	builder.WriteString(".section{margin-top:28px;}\n")
 	builder.WriteString(".section h2{margin:0 0 14px;font-size:20px;color:#102a43;}\n")
+	builder.WriteString(".section-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;}\n")
+	builder.WriteString(".tabs{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px;}\n")
+	builder.WriteString(".tab-button{border:none;border-radius:999px;padding:12px 18px;font-size:14px;font-weight:600;background:#d9e2ec;color:#243b53;cursor:pointer;transition:all .2s ease;}\n")
+	builder.WriteString(".tab-button.active{background:#133c55;color:#fff;box-shadow:0 10px 24px rgba(19,60,85,.18);}\n")
+	builder.WriteString(".tab-panel{display:none;}\n")
+	builder.WriteString(".tab-panel.active{display:block;}\n")
 	builder.WriteString(".table-wrap{background:#fff;border-radius:18px;padding:16px 16px 8px;box-shadow:0 14px 30px rgba(16,42,67,.08);overflow:auto;}\n")
+	builder.WriteString(".info-card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 14px 30px rgba(16,42,67,.08);}\n")
+	builder.WriteString(".info-card h3{margin:0 0 12px;font-size:16px;color:#102a43;}\n")
+	builder.WriteString(".pill{display:inline-flex;align-items:center;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;background:#fde68a;color:#7c2d12;}\n")
+	builder.WriteString(".callout{margin-top:16px;background:#fff7ed;border-left:4px solid #d9822b;border-radius:14px;padding:14px 16px;color:#7c2d12;box-shadow:0 14px 30px rgba(16,42,67,.05);}\n")
 	builder.WriteString("table{width:100%;border-collapse:collapse;font-size:14px;}\n")
 	builder.WriteString("th,td{padding:12px 14px;border-bottom:1px solid #e6ecf1;}\n")
 	builder.WriteString("th{text-align:left;background:#f8fafc;color:#486581;font-size:12px;letter-spacing:.04em;text-transform:uppercase;}\n")
@@ -56,18 +66,25 @@ func buildHTMLReport(reportTime time.Time, benchmarkOptions benchmarkOptions, sc
 	builder.WriteString(".bar-fill.cool{background:linear-gradient(90deg,#2b6cb0,#63b3ed);}\n")
 	builder.WriteString(".bar-value{text-align:right;font-size:12px;color:#486581;font-variant-numeric:tabular-nums;}\n")
 	builder.WriteString(".footnote{margin-top:16px;font-size:13px;color:#627d98;}\n")
-	builder.WriteString("@media (max-width:720px){.bar-row{grid-template-columns:1fr;}.bar-value{text-align:left;}}\n")
+	builder.WriteString("@media (max-width:720px){.bar-row{grid-template-columns:1fr;}.bar-value{text-align:left;}.tabs{flex-direction:column;}.tab-button{width:100%;}}\n")
 	builder.WriteString("</style>\n</head>\n<body>\n<div class=\"page\">\n")
 	builder.WriteString("<section class=\"hero\">\n")
 	builder.WriteString("<h1>Scheduler Benchmark Report</h1>\n")
-	builder.WriteString("<p>This report measures scheduler overhead by workload and then compares two explicit whale-versus-normal fairness scenarios across three worker counts. The fairness view focuses on total throughput and the time each customer needs to fully finish.</p>\n")
+	builder.WriteString("<p>This report separates scheduler throughput evidence from fairness evidence so reviewers can quickly tell what was measured, what the numbers mean, and how much app-level confidence they should take from the run.</p>\n")
 	builder.WriteString(fmt.Sprintf("<div class=\"meta\">Generated at %s UTC</div>\n", reportTime.Format("2006-01-02 15:04:05")))
 	builder.WriteString(fmt.Sprintf("<div class=\"meta\">Mode: %s</div>\n", benchmarkOptions.mode))
 	if !benchmarkOptions.includeLargeScenario {
-		builder.WriteString("<div class=\"meta\">Large fairness scenario: skipped</div>\n")
+		builder.WriteString("<div class=\"meta\"><span class=\"pill\">Large fairness scenario skipped</span></div>\n")
 	}
 	builder.WriteString("</section>\n")
+	builder.WriteString(buildHTMLIntroSections(benchmarkOptions))
+	builder.WriteString("<section class=\"tabs\" aria-label=\"Benchmark report sections\">\n")
+	builder.WriteString("<button class=\"tab-button active\" type=\"button\" data-tab-target=\"throughput-tab\">Throughput Benchmark</button>\n")
+	builder.WriteString("<button class=\"tab-button\" type=\"button\" data-tab-target=\"fairness-tab\">Fairness Benchmark</button>\n")
+	builder.WriteString("</section>\n")
+	builder.WriteString("<section class=\"tab-panel active\" id=\"throughput-tab\">\n")
 	builder.WriteString("<section class=\"section\">\n<h2>Scheduler Results</h2>\n<div class=\"table-wrap\">\n")
+	builder.WriteString("<div class=\"callout\">This tab is scheduler-only evidence. Use it to compare scheduler cost by workload. Do not read these numbers as app-mode throughput or deployment-level scale proof.</div>\n")
 	builder.WriteString("<table>\n<thead><tr><th>Scenario</th><th class=\"num\">Jobs / iteration</th><th class=\"num\">ns/op</th><th class=\"num\">allocs/op</th><th class=\"num\">bytes/op</th><th class=\"num\">ops/sec</th><th class=\"num\">jobs/sec</th></tr></thead>\n<tbody>\n")
 
 	for _, summary := range schedulerSummaries {
@@ -89,7 +106,15 @@ func buildHTMLReport(reportTime time.Time, benchmarkOptions benchmarkOptions, sc
 	builder.WriteString(buildHTMLChartCard("Allocations by Scenario (allocs/op)", schedulerSummaries, maxAllocsPerOp, "allocs", "alt"))
 	builder.WriteString(buildHTMLChartCard("Memory by Scenario (bytes/op)", schedulerSummaries, maxBytesPerOp, "bytes", "cool"))
 	builder.WriteString("</div>\n<div class=\"footnote\">Longer bars represent larger cost per benchmark iteration. Use these charts to compare how scheduler overhead grows as the workload gets larger.</div>\n</section>\n")
+	builder.WriteString("</section>\n")
+	builder.WriteString("<section class=\"tab-panel\" id=\"fairness-tab\">\n")
 	builder.WriteString(buildHTMLFairnessScenarioSections(benchmarkOptions.mode, fairnessScenarioSummaries))
+	builder.WriteString("</section>\n")
+	builder.WriteString("<script>\n")
+	builder.WriteString("const tabButtons=document.querySelectorAll('[data-tab-target]');\n")
+	builder.WriteString("const tabPanels=document.querySelectorAll('.tab-panel');\n")
+	builder.WriteString("tabButtons.forEach((tabButton)=>{tabButton.addEventListener('click',()=>{const targetId=tabButton.getAttribute('data-tab-target');tabButtons.forEach((button)=>button.classList.remove('active'));tabPanels.forEach((panel)=>panel.classList.remove('active'));tabButton.classList.add('active');document.getElementById(targetId).classList.add('active');});});\n")
+	builder.WriteString("</script>\n")
 	builder.WriteString("</div>\n</body>\n</html>\n")
 
 	return builder.String()
@@ -100,12 +125,18 @@ func buildHTMLFairnessScenarioSections(mode benchmarkMode, fairnessScenarioSumma
 
 	builder.WriteString("<section class=\"section\">\n")
 	builder.WriteString(fmt.Sprintf("<h2>Worker Fairness Scenarios (%s mode)</h2>\n", html.EscapeString(string(mode))))
+	if mode == benchmarkModeApp {
+		builder.WriteString("<p>App mode covers the in-memory notifier fairness pipeline: enqueue, queue claim, scheduler handoff, worker execution, and synthetic completion timing. It does not include PostgreSQL queue behavior or real webhook network delivery.</p>\n")
+	} else {
+		builder.WriteString("<p>Scheduler mode covers the scheduler plus a synthetic worker harness. It is useful for fairness shape, but it is not deployment-level app evidence.</p>\n")
+	}
 	builder.WriteString("</section>\n")
 
 	for _, scenarioSummary := range fairnessScenarioSummaries {
 		builder.WriteString("<section class=\"section\">\n")
 		builder.WriteString(fmt.Sprintf("<h2>%s</h2>\n", html.EscapeString(scenarioSummary.name)))
 		builder.WriteString(fmt.Sprintf("<p>%s</p>\n", html.EscapeString(scenarioSummary.description)))
+		builder.WriteString(buildHTMLFairnessConclusionList(mode, scenarioSummary))
 		builder.WriteString("<div class=\"table-wrap\">\n")
 		builder.WriteString("<table>\n<thead><tr><th>Workers</th><th class=\"num\">Jobs</th><th class=\"num\">Duration</th><th class=\"num\">jobs/sec</th></tr></thead>\n<tbody>\n")
 		for _, runSummary := range scenarioSummary.workerRunSummaries {
@@ -119,11 +150,16 @@ func buildHTMLFairnessScenarioSections(mode benchmarkMode, fairnessScenarioSumma
 		}
 		builder.WriteString("</tbody>\n</table>\n</div>\n")
 		builder.WriteString("<div class=\"table-wrap\" style=\"margin-top:16px;\">\n")
-		builder.WriteString("<table>\n<thead><tr><th>Workers</th><th>Segment</th><th class=\"num\">Messages</th><th>Customer</th><th class=\"num\">First</th><th class=\"num\">Finish</th><th class=\"num\">Early</th><th class=\"num\">Share</th></tr></thead>\n<tbody>\n")
+		builder.WriteString("<table>\n<thead><tr><th>Workers</th><th>Segment</th><th class=\"num\">Messages</th><th>Customer</th><th class=\"num\">First completion</th><th class=\"num\">Full completion</th><th class=\"num\">Early completions</th><th class=\"num\">Early-window share</th><th class=\"num\">Whale vs non-whale full gap</th><th>Normals before whales?</th></tr></thead>\n<tbody>\n")
 		for _, runSummary := range scenarioSummary.workerRunSummaries {
+			runInsights := analyzeFairnessRun(runSummary.customerSummaries)
+			nonWhalesFinishedBeforeWhales := "No"
+			if runInsights.nonWhalesFinishedBeforeWhales {
+				nonWhalesFinishedBeforeWhales = "Yes"
+			}
 			for _, customerSummary := range runSummary.customerSummaries {
 				builder.WriteString(fmt.Sprintf(
-					"<tr><td>%d</td><td>%s</td><td class=\"num\">%d</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%d</td><td class=\"num\">%.1f%%</td></tr>\n",
+					"<tr><td>%d</td><td>%s</td><td class=\"num\">%d</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%d</td><td class=\"num\">%.1f%%</td><td class=\"num\">%s</td><td>%s</td></tr>\n",
 					runSummary.workerCount,
 					html.EscapeString(customerSummary.customerSegment),
 					customerSummary.jobCount,
@@ -132,11 +168,13 @@ func buildHTMLFairnessScenarioSections(mode benchmarkMode, fairnessScenarioSumma
 					customerSummary.finishDuration.Round(time.Millisecond),
 					customerSummary.earlyCompletionCount,
 					customerSummary.earlyCompletionShare*100,
+					html.EscapeString(formatDurationGap(runInsights.whaleVsNonWhaleCompletionGap)),
+					nonWhalesFinishedBeforeWhales,
 				))
 			}
 		}
 		builder.WriteString("</tbody>\n</table>\n</div>\n")
-		builder.WriteString(fmt.Sprintf("<div class=\"footnote\">Early share is measured over the first %d completed jobs in each worker run.</div>\n", scenarioSummary.workerRunSummaries[0].earlyCompletionWindow))
+		builder.WriteString(fmt.Sprintf("<div class=\"footnote\">%s</div>\n", html.EscapeString(scenarioSummary.earlyWindowReason)))
 		builder.WriteString("<div class=\"charts\" style=\"margin-top:18px;\">\n")
 		builder.WriteString(buildScenarioThroughputChart(scenarioSummary))
 		builder.WriteString(buildScenarioFinishChart(scenarioSummary))

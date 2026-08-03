@@ -175,12 +175,31 @@ pre{
     <p>The tool does two things on each run:</p>
     <ol>
       <li>prints an aligned text table to standard output</li>
-      <li>writes a self-contained HTML report with fairness comparison tables and charts to <code>loadtest/reports/</code></li>
+      <li>writes a self-contained HTML report with separate <strong>Throughput Benchmark</strong> and <strong>Fairness Benchmark</strong> tabs to <code>loadtest/reports/</code></li>
     </ol>
     <p>Report files use this naming pattern:</p>
     <pre><code>loadtest/reports/scheduler-benchmark-scheduler-YYYYMMDD-HHMMSS.html
 loadtest/reports/scheduler-benchmark-app-YYYYMMDD-HHMMSS.html</code></pre>
     <p class="note">The <code>loadtest/reports/</code> directory is ignored by git.</p>
+  </section>
+
+  <section class="section">
+    <h2>Interpretation And Runtime Notes</h2>
+    <p>Keep one HTML report per run, but use the tabs differently:</p>
+    <ul>
+      <li><strong>Throughput Benchmark</strong>: scheduler-only microbenchmark evidence</li>
+      <li><strong>Fairness Benchmark</strong>: customer-facing progress evidence</li>
+    </ul>
+    <p>The report now calls out what each mode includes and excludes so reviewers do not mistake synthetic harness results for full app-level scale proof.</p>
+    <p>Measured smoke-run examples from <code>2026-08-03</code> with <code>--include-large-fairness-case=false</code>:</p>
+    <ul>
+      <li><code>scheduler</code> mode: about <code>13s</code></li>
+      <li><code>app</code> mode: about <code>7s</code></li>
+    </ul>
+    <p>The large <code>two-whales-200000-two-normals-2</code> case remains opt-in and should be treated as a slower full run because it adds a much heavier fairness scenario on top of the smoke scenario.</p>
+    <p>Example report paths generated on <code>2026-08-03</code>:</p>
+    <pre><code>loadtest/reports/scheduler-benchmark-scheduler-20260803-130540.html
+loadtest/reports/scheduler-benchmark-app-20260803-130553.html</code></pre>
   </section>
 </main>
 </body>

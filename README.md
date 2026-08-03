@@ -404,6 +404,52 @@ curl -sS -X POST http://localhost:28080/events/batch \
   ]'
 ```
 
+## Scheduler Benchmark
+
+Run the benchmark from the repository root:
+
+```bash
+go run ./cmd/scheduler-benchmark --include-large-fairness-case=false
+```
+
+Run the matching in-memory app fairness benchmark:
+
+```bash
+go run ./cmd/scheduler-benchmark --mode app --include-large-fairness-case=false
+```
+
+Enable the large opt-in fairness scenario when you want the deeper whale run:
+
+```bash
+go run ./cmd/scheduler-benchmark --mode app --include-large-fairness-case=true
+```
+
+How to interpret the output:
+
+- the `Throughput Benchmark` tab is scheduler-only microbenchmark evidence
+- the `Fairness Benchmark` tab is the customer-facing progress view
+- `scheduler` mode includes only the round-robin scheduler plus the synthetic worker harness
+- `app` mode includes enqueue, in-memory queue claim, scheduler handoff, worker execution, and synthetic delivery work
+- `app` mode still excludes PostgreSQL queue behavior, notifier HTTP ingest, real outbound HTTP delivery cost, and failure-path retry or DLQ behavior
+
+Report structure decision:
+
+- keep one HTML report file per run
+- keep throughput and fairness evidence in separate tabs inside that file so reviewers can scan one artifact without mixing the result types
+
+Expected runtime on this repository as measured on `2026-08-03` with the large fairness case skipped:
+
+- scheduler smoke run: about `13s`
+- app smoke run: about `7s`
+- large fairness scenario enabled: expect materially longer runtime because the run adds the `two-whales-200000-two-normals-2` case in addition to the smoke scenario
+
+Example smoke-run report files generated on `2026-08-03`:
+
+- `loadtest/reports/scheduler-benchmark-scheduler-20260803-130540.html`
+- `loadtest/reports/scheduler-benchmark-app-20260803-130553.html`
+
+The benchmark still prints a clickable absolute report path in terminal output after each run.
+
 ## Test Commands
 
 Run the focused unit and integration coverage that exercises the PostgreSQL-backed path:

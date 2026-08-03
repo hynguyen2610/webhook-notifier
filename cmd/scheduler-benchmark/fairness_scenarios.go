@@ -22,6 +22,7 @@ type fairnessScenarioSummary struct {
 	name               string
 	description        string
 	totalJobCount      int
+	earlyWindowReason  string
 	workerRunSummaries []fairnessWorkerRunSummary
 }
 
@@ -134,6 +135,7 @@ func runFairnessScenario(definition fairnessScenarioDefinition, mode benchmarkMo
 		name:               definition.name,
 		description:        definition.description,
 		totalJobCount:      len(scenario.jobs),
+		earlyWindowReason:  earlyCompletionWindowExplanation(defaultEarlyCompletionWindow),
 		workerRunSummaries: workerRunSummaries,
 	}, nil
 }
@@ -144,7 +146,7 @@ func runAppFairnessWorkerRun(definition fairnessScenarioDefinition, workerCount 
 		CustomerSegments:        definition.customerSegments,
 		WorkerCount:             workerCount,
 		SyntheticWorkIterations: definition.syntheticWorkIterations,
-		EarlyCompletionWindow:   20,
+		EarlyCompletionWindow:   defaultEarlyCompletionWindow,
 	})
 	if runError != nil {
 		return fairnessWorkerRunSummary{}, runError
@@ -190,7 +192,7 @@ func runSchedulerFairnessWorkerRun(
 	firstTimes := make(map[string]time.Time, len(customerOrder))
 	finishTimes := make(map[string]time.Time, len(customerOrder))
 	earlyCompletionCounts := make(map[string]int, len(customerOrder))
-	earlyCompletionWindow := 20
+	earlyCompletionWindow := defaultEarlyCompletionWindow
 	if len(scenario.jobs) < earlyCompletionWindow {
 		earlyCompletionWindow = len(scenario.jobs)
 	}

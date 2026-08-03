@@ -182,9 +182,15 @@ func buildConsoleReport(reportTime time.Time, benchmarkOptions benchmarkOptions,
 	builder.WriteString(fmt.Sprintf("Generated at %s UTC.\n\n", reportTime.Format("2006-01-02 15:04:05")))
 	builder.WriteString(fmt.Sprintf("Mode: %s\n", benchmarkOptions.mode))
 	if !benchmarkOptions.includeLargeScenario {
-		builder.WriteString("Large fairness scenario: skipped\n")
+		builder.WriteString("Large fairness scenario: skipped by default for faster day-to-day runs\n")
 	}
 	builder.WriteString("\n")
+	builder.WriteString("How to read this report\n")
+	for _, line := range buildHowToReadReport(benchmarkOptions.mode) {
+		builder.WriteString(fmt.Sprintf("- %s\n", line))
+	}
+	builder.WriteString("\n")
+	builder.WriteString("Throughput benchmark scope\n")
 	builder.WriteString("This benchmark measures the round-robin scheduler end-to-end within one benchmark iteration: enqueue jobs, emit scheduled jobs, and drain the scheduler output channel.\n\n")
 	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s %14s\n", "Scenario", "Jobs/iter", "ns/op", "allocs/op", "bytes/op", "ops/sec", "jobs/sec"))
 	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s %14s\n", strings.Repeat("-", 28), strings.Repeat("-", 14), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 14)))
@@ -200,6 +206,13 @@ func buildConsoleReport(reportTime time.Time, benchmarkOptions benchmarkOptions,
 			summary.throughputOps,
 			summary.jobsPerSecond,
 		))
+	}
+
+	if benchmarkOptions.mode == benchmarkModeApp {
+		builder.WriteString("\nApp-mode confidence notes\n")
+		for _, line := range appModeConfidenceSummary() {
+			builder.WriteString(fmt.Sprintf("- %s\n", line))
+		}
 	}
 
 	builder.WriteString(buildConsoleFairnessReport(benchmarkOptions.mode, fairnessScenarioSummaries))
