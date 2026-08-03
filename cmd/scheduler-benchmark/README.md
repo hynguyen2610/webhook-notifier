@@ -18,6 +18,7 @@ The benchmark records these metrics for each scenario:
 - `allocs/op`: average heap allocations per benchmark iteration
 - `bytes/op`: average allocated bytes per benchmark iteration
 - `ops/sec`: derived throughput based on `ns/op`
+- `jobs/sec`: derived job throughput based on `ops/sec * jobs per iteration`
 
 One benchmark iteration includes:
 

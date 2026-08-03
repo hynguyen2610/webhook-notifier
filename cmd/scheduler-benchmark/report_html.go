@@ -60,21 +60,22 @@ func buildHTMLReport(reportTime time.Time, summaries []benchmarkSummary) string 
 	builder.WriteString("</style>\n</head>\n<body>\n<div class=\"page\">\n")
 	builder.WriteString("<section class=\"hero\">\n")
 	builder.WriteString("<h1>Scheduler Benchmark Report</h1>\n")
-	builder.WriteString("<p>This benchmark measures the round-robin scheduler end-to-end within one benchmark iteration: enqueue jobs, emit scheduled jobs, and drain the scheduler output channel.</p>\n")
+	builder.WriteString("<p>This benchmark measures the round-robin scheduler end-to-end within one benchmark iteration: enqueue jobs, emit scheduled jobs, and drain the scheduler output channel. It also calculates jobs per second so larger workloads are easier to compare.</p>\n")
 	builder.WriteString(fmt.Sprintf("<div class=\"meta\">Generated at %s UTC</div>\n", reportTime.Format("2006-01-02 15:04:05")))
 	builder.WriteString("</section>\n")
 	builder.WriteString("<section class=\"section\">\n<h2>Results Table</h2>\n<div class=\"table-wrap\">\n")
-	builder.WriteString("<table>\n<thead><tr><th>Scenario</th><th class=\"num\">Jobs / iteration</th><th class=\"num\">ns/op</th><th class=\"num\">allocs/op</th><th class=\"num\">bytes/op</th><th class=\"num\">ops/sec</th></tr></thead>\n<tbody>\n")
+	builder.WriteString("<table>\n<thead><tr><th>Scenario</th><th class=\"num\">Jobs / iteration</th><th class=\"num\">ns/op</th><th class=\"num\">allocs/op</th><th class=\"num\">bytes/op</th><th class=\"num\">ops/sec</th><th class=\"num\">jobs/sec</th></tr></thead>\n<tbody>\n")
 
 	for _, summary := range summaries {
 		builder.WriteString(fmt.Sprintf(
-			"<tr><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%.2f</td></tr>\n",
+			"<tr><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%.2f</td><td class=\"num\">%.2f</td></tr>\n",
 			html.EscapeString(summary.name),
 			summary.jobCount,
 			summary.nsPerOp,
 			summary.allocsPerOp,
 			summary.bytesPerOp,
 			summary.throughputOps,
+			summary.jobsPerSecond,
 		))
 	}
 

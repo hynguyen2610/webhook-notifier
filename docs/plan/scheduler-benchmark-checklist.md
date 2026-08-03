@@ -6,7 +6,7 @@
 - [x] Capture scheduler `allocs/op`
 - [x] Capture scheduler `bytes/op`
 - [x] Print benchmark results to the terminal
-- [x] Save a benchmark report under `loadtest/reports/`
+- [x] Save an HTML benchmark report under `loadtest/reports/`
 
 ## Workloads
 
@@ -20,3 +20,4 @@
 - [x] Confirm the benchmark command runs locally
 - [x] Confirm the report file is created with a timestamped name
 - [x] Confirm `loadtest/reports/` is ignored by git
+- [x] Confirm each report includes a readable table and charts

@@ -26,6 +26,7 @@ type benchmarkSummary struct {
 	allocsPerOp   int64
 	bytesPerOp    int64
 	throughputOps float64
+	jobsPerSecond float64
 }
 
 func main() {
@@ -157,6 +158,7 @@ func runScenarioBenchmark(scenario benchmarkScenario) benchmarkSummary {
 		allocsPerOp:   benchmarkResult.AllocsPerOp(),
 		bytesPerOp:    benchmarkResult.AllocedBytesPerOp(),
 		throughputOps: throughputOps,
+		jobsPerSecond: throughputOps * float64(len(scenario.jobs)),
 	}
 }
 
@@ -166,18 +168,19 @@ func buildConsoleReport(reportTime time.Time, summaries []benchmarkSummary) stri
 	builder.WriteString("Scheduler Benchmark Report\n\n")
 	builder.WriteString(fmt.Sprintf("Generated at %s UTC.\n\n", reportTime.Format("2006-01-02 15:04:05")))
 	builder.WriteString("This benchmark measures the round-robin scheduler end-to-end within one benchmark iteration: enqueue jobs, emit scheduled jobs, and drain the scheduler output channel.\n\n")
-	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s\n", "Scenario", "Jobs/iter", "ns/op", "allocs/op", "bytes/op", "ops/sec"))
-	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s\n", strings.Repeat("-", 28), strings.Repeat("-", 14), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12)))
+	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s %14s\n", "Scenario", "Jobs/iter", "ns/op", "allocs/op", "bytes/op", "ops/sec", "jobs/sec"))
+	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s %14s\n", strings.Repeat("-", 28), strings.Repeat("-", 14), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 14)))
 
 	for _, summary := range summaries {
 		builder.WriteString(fmt.Sprintf(
-			"%-28s %14d %12d %12d %12d %12.2f\n",
+			"%-28s %14d %12d %12d %12d %12.2f %14.2f\n",
 			summary.name,
 			summary.jobCount,
 			summary.nsPerOp,
 			summary.allocsPerOp,
 			summary.bytesPerOp,
 			summary.throughputOps,
+			summary.jobsPerSecond,
 		))
 	}
 
