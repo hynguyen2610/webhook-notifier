@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheduler Benchmark</title>
+<style>
+:root{
+  --background:#f4efe7;
+  --surface:#ffffff;
+  --text:#1f2933;
+  --muted:#52606d;
+  --accent:#133c55;
+  --accent-soft:#386fa4;
+  --border:#d9e2ec;
+  --code:#102a43;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:linear-gradient(180deg,#f7f1e8 0%,#f0f4f8 100%);
+  color:var(--text);
+}
+.page{
+  max-width:920px;
+  margin:0 auto;
+  padding:40px 20px 64px;
+}
+.hero{
+  background:linear-gradient(135deg,var(--accent),var(--accent-soft));
+  color:#fff;
+  border-radius:24px;
+  padding:28px 30px;
+  box-shadow:0 20px 45px rgba(19,60,85,.2);
+}
+.hero h1{
+  margin:0 0 10px;
+  font-size:36px;
+  line-height:1.1;
+}
+.hero p{
+  margin:0;
+  max-width:720px;
+  line-height:1.6;
+  color:rgba(255,255,255,.88);
+}
+.section{
+  margin-top:28px;
+  background:var(--surface);
+  border:1px solid rgba(15,23,42,.06);
+  border-radius:20px;
+  padding:24px 24px 18px;
+  box-shadow:0 12px 28px rgba(15,23,42,.06);
+}
+h2{
+  margin:0 0 14px;
+  font-size:22px;
+  color:var(--code);
+}
+p, li{
+  line-height:1.7;
+}
+ul, ol{
+  margin:12px 0 0 20px;
+  padding:0;
+}
+code, pre{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+code{
+  background:#eef2f6;
+  color:var(--code);
+  padding:2px 6px;
+  border-radius:8px;
+}
+pre{
+  margin:14px 0 0;
+  background:#0f172a;
+  color:#e2e8f0;
+  padding:16px 18px;
+  border-radius:16px;
+  overflow:auto;
+}
+.note{
+  margin-top:12px;
+  color:var(--muted);
+}
+@media (max-width:720px){
+  .hero h1{font-size:30px;}
+  .section{padding:20px 18px 14px;}
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <section class="hero">
+    <h1>Scheduler Benchmark</h1>
+    <p>This tool runs scheduler benchmarks plus explicit worker fairness scenarios and records the results both on screen and in a timestamped HTML report file.</p>
+  </section>
+
+  <section class="section">
+    <h2>Run</h2>
+    <p>From the repository root:</p>
+    <pre><code>go run ./cmd/scheduler-benchmark</code></pre>
+    <p>Opt in to app-level fairness runs:</p>
+    <pre><code>go run ./cmd/scheduler-benchmark --mode app</code></pre>
+    <p>Skip the <code>200000</code>-message whale scenario for a faster smoke run:</p>
+    <pre><code>go run ./cmd/scheduler-benchmark --include-large-fairness-case=false</code></pre>
+    <p>Environment-variable fallback:</p>
+    <ul>
+      <li><code>SCHEDULER_BENCHMARK_MODE=scheduler|app</code></li>
+      <li><code>SCHEDULER_BENCHMARK_SKIP_LARGE_FAIRNESS_CASE=true|false</code></li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2>What It Measures</h2>
+    <p>The benchmark records these metrics for each scenario:</p>
+    <ul>
+      <li><code>ns/op</code>: average nanoseconds per benchmark iteration</li>
+      <li><code>allocs/op</code>: average heap allocations per benchmark iteration</li>
+      <li><code>bytes/op</code>: average allocated bytes per benchmark iteration</li>
+      <li><code>ops/sec</code>: derived throughput based on <code>ns/op</code></li>
+      <li><code>jobs/sec</code>: derived job throughput based on <code>ops/sec * jobs per iteration</code></li>
+    </ul>
+    <p>The worker fairness scenarios record these metrics for each worker count:</p>
+    <ul>
+      <li>total <code>duration</code>: wall-clock time to finish the full scenario</li>
+      <li>total <code>jobs/sec</code>: total delivered jobs divided by wall-clock time</li>
+      <li>per-customer first completion duration: how quickly each customer starts making progress</li>
+      <li>per-customer finish duration: how long each customer takes to fully finish</li>
+      <li>early completion share: each customer's share of the first <code>20</code> completed jobs</li>
+    </ul>
+    <p>Mode-specific scope:</p>
+    <ul>
+      <li><code>scheduler</code> mode: scheduler plus the benchmark's synthetic worker harness</li>
+      <li><code>app</code> mode: notifier enqueue, in-memory registry lookup, in-memory queue polling, real notifier worker flow, and synthetic delivery work</li>
+    </ul>
+    <p>Out of scope in <code>app</code> mode:</p>
+    <ul>
+      <li>PostgreSQL queue behavior</li>
+      <li>notifier HTTP server startup and ingest endpoints</li>
+      <li>real outbound HTTP webhook delivery</li>
+      <li>retries and DLQ behavior under failure</li>
+    </ul>
+    <p>One benchmark iteration includes:</p>
+    <ol>
+      <li>creating a scheduler</li>
+      <li>enqueueing the scenario jobs</li>
+      <li>reading scheduled jobs until all jobs are drained</li>
+      <li>shutting down the scheduler</li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <h2>Scenarios</h2>
+    <p>The tool currently benchmarks these workloads:</p>
+    <ul>
+      <li><code>single-customer-burst</code>: one customer with a large burst of queued jobs</li>
+      <li><code>balanced-three-customers</code>: three customers with evenly distributed jobs</li>
+      <li><code>whale-scenario</code>: one whale customer plus smaller customers mixed into the same workload</li>
+      <li><code>huge-mixed-customer-load</code>: a much larger mixed workload intended to make growth in <code>ns/op</code>, allocations, and bytes easier to compare across runs</li>
+    </ul>
+    <p>The worker fairness scenarios are:</p>
+    <ul>
+      <li><code>two-whales-100-two-normals-2</code>: <code>100</code>, <code>100</code>, <code>2</code>, and <code>2</code> queued messages across four customers</li>
+      <li><code>two-whales-200000-two-normals-2</code>: <code>200000</code>, <code>200000</code>, <code>2</code>, and <code>2</code> queued messages across four customers</li>
+    </ul>
+    <p>Each fairness scenario runs with worker counts <code>1</code>, <code>4</code>, and <code>8</code>.</p>
+  </section>
+
+  <section class="section">
+    <h2>Output</h2>
+    <p>The tool does two things on each run:</p>
+    <ol>
+      <li>prints an aligned text table to standard output</li>
+      <li>writes a self-contained HTML report with fairness comparison tables and charts to <code>loadtest/reports/</code></li>
+    </ol>
+    <p>Report files use this naming pattern:</p>
+    <pre><code>loadtest/reports/scheduler-benchmark-scheduler-YYYYMMDD-HHMMSS.html
+loadtest/reports/scheduler-benchmark-app-YYYYMMDD-HHMMSS.html</code></pre>
+    <p class="note">The <code>loadtest/reports/</code> directory is ignored by git.</p>
+  </section>
+</main>
+</body>
+</html>

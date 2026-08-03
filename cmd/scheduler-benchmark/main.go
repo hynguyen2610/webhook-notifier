@@ -31,6 +31,12 @@ type benchmarkSummary struct {
 }
 
 func main() {
+	benchmarkOptions, optionsError := parseBenchmarkOptions()
+	if optionsError != nil {
+		fmt.Fprintf(os.Stderr, "parse benchmark options: %v\n", optionsError)
+		os.Exit(1)
+	}
+
 	reportTime := time.Now().UTC()
 	schedulerScenarios := []benchmarkScenario{
 		newScenario("single-customer-burst", map[string]int{
@@ -64,18 +70,18 @@ func main() {
 		schedulerSummaries = append(schedulerSummaries, runScenarioBenchmark(scenario))
 	}
 
-	fairnessScenarioSummaries, fairnessScenarioError := runFairnessScenarios()
+	fairnessScenarioSummaries, fairnessScenarioError := runFairnessScenarios(benchmarkOptions)
 	if fairnessScenarioError != nil {
 		fmt.Fprintf(os.Stderr, "run fairness scenarios: %v\n", fairnessScenarioError)
 		os.Exit(1)
 	}
 
-	consoleReportContent := buildConsoleReport(reportTime, schedulerSummaries, fairnessScenarioSummaries)
+	consoleReportContent := buildConsoleReport(reportTime, benchmarkOptions, schedulerSummaries, fairnessScenarioSummaries)
 	fmt.Print(consoleReportContent)
 
-	reportContent := buildHTMLReport(reportTime, schedulerSummaries, fairnessScenarioSummaries)
+	reportContent := buildHTMLReport(reportTime, benchmarkOptions, schedulerSummaries, fairnessScenarioSummaries)
 
-	reportPath, writeError := writeReport(reportTime, reportContent)
+	reportPath, writeError := writeReport(reportTime, benchmarkOptions.mode, reportContent)
 	if writeError != nil {
 		fmt.Fprintf(os.Stderr, "write scheduler benchmark report: %v\n", writeError)
 		os.Exit(1)
@@ -169,11 +175,16 @@ func runScenarioBenchmark(scenario benchmarkScenario) benchmarkSummary {
 	}
 }
 
-func buildConsoleReport(reportTime time.Time, schedulerSummaries []benchmarkSummary, fairnessScenarioSummaries []fairnessScenarioSummary) string {
+func buildConsoleReport(reportTime time.Time, benchmarkOptions benchmarkOptions, schedulerSummaries []benchmarkSummary, fairnessScenarioSummaries []fairnessScenarioSummary) string {
 	var builder strings.Builder
 
 	builder.WriteString("Scheduler Benchmark Report\n\n")
 	builder.WriteString(fmt.Sprintf("Generated at %s UTC.\n\n", reportTime.Format("2006-01-02 15:04:05")))
+	builder.WriteString(fmt.Sprintf("Mode: %s\n", benchmarkOptions.mode))
+	if !benchmarkOptions.includeLargeScenario {
+		builder.WriteString("Large fairness scenario: skipped\n")
+	}
+	builder.WriteString("\n")
 	builder.WriteString("This benchmark measures the round-robin scheduler end-to-end within one benchmark iteration: enqueue jobs, emit scheduled jobs, and drain the scheduler output channel.\n\n")
 	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s %14s\n", "Scenario", "Jobs/iter", "ns/op", "allocs/op", "bytes/op", "ops/sec", "jobs/sec"))
 	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s %14s\n", strings.Repeat("-", 28), strings.Repeat("-", 14), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 14)))
@@ -191,12 +202,12 @@ func buildConsoleReport(reportTime time.Time, schedulerSummaries []benchmarkSumm
 		))
 	}
 
-	builder.WriteString(buildConsoleFairnessReport(fairnessScenarioSummaries))
+	builder.WriteString(buildConsoleFairnessReport(benchmarkOptions.mode, fairnessScenarioSummaries))
 
 	return builder.String()
 }
 
-func writeReport(reportTime time.Time, reportContent string) (string, error) {
+func writeReport(reportTime time.Time, mode benchmarkMode, reportContent string) (string, error) {
 	reportDirectory := filepath.Join("loadtest", "reports")
 	if mkdirError := os.MkdirAll(reportDirectory, 0o755); mkdirError != nil {
 		return "", mkdirError
@@ -204,7 +215,7 @@ func writeReport(reportTime time.Time, reportContent string) (string, error) {
 
 	reportPath := filepath.Join(
 		reportDirectory,
-		fmt.Sprintf("scheduler-benchmark-%s.html", reportTime.Format("20060102-150405")),
+		fmt.Sprintf("scheduler-benchmark-%s-%s.html", mode, reportTime.Format("20060102-150405")),
 	)
 	if writeError := os.WriteFile(reportPath, []byte(reportContent), 0o644); writeError != nil {
 		return "", writeError

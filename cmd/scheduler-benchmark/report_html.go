@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func buildHTMLReport(reportTime time.Time, schedulerSummaries []benchmarkSummary, fairnessScenarioSummaries []fairnessScenarioSummary) string {
+func buildHTMLReport(reportTime time.Time, benchmarkOptions benchmarkOptions, schedulerSummaries []benchmarkSummary, fairnessScenarioSummaries []fairnessScenarioSummary) string {
 	var builder strings.Builder
 	maxNsPerOp := int64(1)
 	maxAllocsPerOp := int64(1)
@@ -62,6 +62,10 @@ func buildHTMLReport(reportTime time.Time, schedulerSummaries []benchmarkSummary
 	builder.WriteString("<h1>Scheduler Benchmark Report</h1>\n")
 	builder.WriteString("<p>This report measures scheduler overhead by workload and then compares two explicit whale-versus-normal fairness scenarios across three worker counts. The fairness view focuses on total throughput and the time each customer needs to fully finish.</p>\n")
 	builder.WriteString(fmt.Sprintf("<div class=\"meta\">Generated at %s UTC</div>\n", reportTime.Format("2006-01-02 15:04:05")))
+	builder.WriteString(fmt.Sprintf("<div class=\"meta\">Mode: %s</div>\n", benchmarkOptions.mode))
+	if !benchmarkOptions.includeLargeScenario {
+		builder.WriteString("<div class=\"meta\">Large fairness scenario: skipped</div>\n")
+	}
 	builder.WriteString("</section>\n")
 	builder.WriteString("<section class=\"section\">\n<h2>Scheduler Results</h2>\n<div class=\"table-wrap\">\n")
 	builder.WriteString("<table>\n<thead><tr><th>Scenario</th><th class=\"num\">Jobs / iteration</th><th class=\"num\">ns/op</th><th class=\"num\">allocs/op</th><th class=\"num\">bytes/op</th><th class=\"num\">ops/sec</th><th class=\"num\">jobs/sec</th></tr></thead>\n<tbody>\n")
@@ -85,14 +89,18 @@ func buildHTMLReport(reportTime time.Time, schedulerSummaries []benchmarkSummary
 	builder.WriteString(buildHTMLChartCard("Allocations by Scenario (allocs/op)", schedulerSummaries, maxAllocsPerOp, "allocs", "alt"))
 	builder.WriteString(buildHTMLChartCard("Memory by Scenario (bytes/op)", schedulerSummaries, maxBytesPerOp, "bytes", "cool"))
 	builder.WriteString("</div>\n<div class=\"footnote\">Longer bars represent larger cost per benchmark iteration. Use these charts to compare how scheduler overhead grows as the workload gets larger.</div>\n</section>\n")
-	builder.WriteString(buildHTMLFairnessScenarioSections(fairnessScenarioSummaries))
+	builder.WriteString(buildHTMLFairnessScenarioSections(benchmarkOptions.mode, fairnessScenarioSummaries))
 	builder.WriteString("</div>\n</body>\n</html>\n")
 
 	return builder.String()
 }
 
-func buildHTMLFairnessScenarioSections(fairnessScenarioSummaries []fairnessScenarioSummary) string {
+func buildHTMLFairnessScenarioSections(mode benchmarkMode, fairnessScenarioSummaries []fairnessScenarioSummary) string {
 	var builder strings.Builder
+
+	builder.WriteString("<section class=\"section\">\n")
+	builder.WriteString(fmt.Sprintf("<h2>Worker Fairness Scenarios (%s mode)</h2>\n", html.EscapeString(string(mode))))
+	builder.WriteString("</section>\n")
 
 	for _, scenarioSummary := range fairnessScenarioSummaries {
 		builder.WriteString("<section class=\"section\">\n")

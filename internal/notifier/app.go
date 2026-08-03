@@ -26,7 +26,7 @@ type Application struct {
 	registry          registration.Registry
 	workQueue         workqueue.Repository
 	scheduler         *scheduler.RoundRobinScheduler
-	deliveryClient    *delivery.HTTPClient
+	deliveryClient    deliveryClient
 	retryPolicy       retry.ExponentialBackoffPolicy
 	notifierMetrics   *metrics.NotifierMetrics
 	httpServer        *http.Server
