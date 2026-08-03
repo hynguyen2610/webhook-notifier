@@ -13,11 +13,6 @@ POSTGRES_ADMIN_DSN="${POSTGRES_ADMIN_DSN:-postgres://postgres:password@127.0.0.1
 WEBHOOK_NOTIFIER_DB_NAME="${WEBHOOK_NOTIFIER_DB_NAME:-webhook_notifier}"
 NOTIFIER_POSTGRES_DSN="${NOTIFIER_POSTGRES_DSN:-postgres://postgres:password@127.0.0.1:15432/${WEBHOOK_NOTIFIER_DB_NAME}?sslmode=disable}"
 
-KAFKA_LOCAL_ADDRESS="${KAFKA_LOCAL_ADDRESS:-127.0.0.1:9092}"
-KAFKA_HOST_OVERRIDES="${KAFKA_HOST_OVERRIDES:-kafka-service=127.0.0.1,kafka-service.default.svc.cluster.local=127.0.0.1}"
-NOTIFIER_TOPIC="${NOTIFIER_TOPIC:-subscriber-events}"
-NOTIFIER_DLQ_TOPIC="${NOTIFIER_DLQ_TOPIC:-subscriber-events-dlq}"
-
 NOTIFIER_HTTP_ADDRESS="${NOTIFIER_HTTP_ADDRESS:-:28080}"
 GENERATOR_HTTP_ADDRESS="${GENERATOR_HTTP_ADDRESS:-:28081}"
 RECEIVER_HTTP_ADDRESS="${RECEIVER_HTTP_ADDRESS:-:28082}"
@@ -119,6 +114,23 @@ wait_for_http_ok() {
   return 1
 }
 
+wait_for_tcp() {
+  local address="$1"
+  local attempts="${2:-20}"
+  local host="${address%%:*}"
+  local port="${address##*:}"
+
+  for ((attempt=1; attempt<=attempts; attempt++)); do
+    if nc -z "${host}" "${port}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  log "timed out waiting for TCP address ${address}"
+  return 1
+}
+
 start_go_service() {
   local service_name="$1"
   local health_url="$2"
@@ -156,9 +168,8 @@ cleanup_service_ports() {
 }
 
 start_port_forwards() {
-  log "ensuring PostgreSQL and Kafka port-forwards"
+  log "ensuring PostgreSQL port-forward"
   kill_kubectl_port_forward_if_needed "${POSTGRES_LOCAL_ADDRESS}"
-  kill_kubectl_port_forward_if_needed "${KAFKA_LOCAL_ADDRESS}"
   (
     cd "${ROOT_DIR}"
     KEEP_RUNNING=true "${PORT_FORWARD_SCRIPT}" >"${LOG_DIR}/port-forwards.log" 2>&1
@@ -171,28 +182,6 @@ start_port_forwards() {
     tail -n 120 "${LOG_DIR}/port-forwards.log" || true
     return 1
   fi
-  if ! wait_for_tcp "${KAFKA_LOCAL_ADDRESS}" 20; then
-    log "port-forward log output:"
-    tail -n 120 "${LOG_DIR}/port-forwards.log" || true
-    return 1
-  fi
-}
-
-wait_for_tcp() {
-  local address="$1"
-  local attempts="${2:-20}"
-  local host="${address%%:*}"
-  local port="${address##*:}"
-
-  for ((attempt=1; attempt<=attempts; attempt++)); do
-    if nc -z "${host}" "${port}" >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-
-  log "timed out waiting for TCP address ${address}"
-  return 1
 }
 
 bootstrap_database() {
@@ -242,7 +231,7 @@ Logs:
 - ${LOG_DIR}/mock-generator.log
 
 Live health checks run every 1 second below.
-Press Ctrl+C to stop the services and port-forwards started by this script.
+Press Ctrl+C to stop the services and port-forward started by this script.
 EOF
 }
 
@@ -264,10 +253,6 @@ main() {
     "${LOG_DIR}/notifier.log" \
     NOTIFIER_HTTP_ADDRESS="${NOTIFIER_HTTP_ADDRESS}" \
     NOTIFIER_POSTGRES_DSN="${NOTIFIER_POSTGRES_DSN}" \
-    NOTIFIER_KAFKA_BROKERS="${KAFKA_LOCAL_ADDRESS}" \
-    NOTIFIER_KAFKA_HOST_OVERRIDES="${KAFKA_HOST_OVERRIDES}" \
-    NOTIFIER_KAFKA_TOPIC="${NOTIFIER_TOPIC}" \
-    NOTIFIER_KAFKA_DLQ_TOPIC="${NOTIFIER_DLQ_TOPIC}" \
     go run ./cmd/notifier
 
   start_go_service \
@@ -275,14 +260,10 @@ main() {
     "${GENERATOR_BASE_URL}/health" \
     "${LOG_DIR}/mock-generator.log" \
     GENERATOR_HTTP_ADDRESS="${GENERATOR_HTTP_ADDRESS}" \
-    GENERATOR_KAFKA_BROKERS="${KAFKA_LOCAL_ADDRESS}" \
-    GENERATOR_KAFKA_HOST_OVERRIDES="${KAFKA_HOST_OVERRIDES}" \
-    GENERATOR_KAFKA_TOPIC="${NOTIFIER_TOPIC}" \
     GENERATOR_NOTIFIER_BASE_URL="${NOTIFIER_BASE_URL}" \
     go run ./cmd/mock-event-generator
 
   show_summary
-
   while true; do
     print_health_summary
     sleep 1

@@ -4,32 +4,32 @@ This checklist translates [ADR 0003](../adr/0003_postgres_backed_work_queue.md) 
 
 ## Goal
 
-- [ ] Remove Kafka as the default runtime dependency
-- [ ] Use PostgreSQL for both webhook registrations and queued delivery work
-- [ ] Preserve fair scheduling, retries, and dead-letter handling
-- [ ] Simplify local setup, CI, and documentation
+- [x] Remove Kafka as the default runtime dependency
+- [x] Use PostgreSQL for both webhook registrations and queued delivery work
+- [x] Preserve fair scheduling, retries, and dead-letter handling
+- [x] Simplify local setup, CI, and documentation
 
 ## Step 1: Define The Queue Model
 
-- [ ] Decide the queue table layout
-- [ ] Define required columns for queued work:
-  - [ ] job ID
-  - [ ] event ID
-  - [ ] customer ID
-  - [ ] subscriber ID
-  - [ ] event type
-  - [ ] payload
-  - [ ] status
-  - [ ] available at
-  - [ ] claimed at
-  - [ ] claim owner
-  - [ ] retry count
-  - [ ] last error
-  - [ ] dead-lettered at
-  - [ ] created at
-  - [ ] updated at
-- [ ] Decide whether completed jobs are retained or deleted
-- [ ] Decide how dead-lettered jobs are represented in PostgreSQL
+- [x] Decide the queue table layout
+- [x] Define required columns for queued work:
+  - [x] job ID
+  - [x] event ID
+  - [x] customer ID
+  - [x] subscriber ID
+  - [x] event type
+  - [x] payload
+  - [x] status
+  - [x] available at
+  - [x] claimed at
+  - [x] claim owner
+  - [x] retry count
+  - [x] last error
+  - [x] dead-lettered at
+  - [x] created at
+  - [x] updated at
+- [x] Decide whether completed jobs are retained or deleted
+- [x] Decide how dead-lettered jobs are represented in PostgreSQL
 
 ## Step 2: Add Database Schema And Access Layer
 
@@ -72,7 +72,7 @@ Current implementation uses `FOR UPDATE SKIP LOCKED` in `ClaimAvailableDeliverie
 
 ## Step 6: Update The Mock Event Generator
 
-- [ ] Replace Kafka publishing with PostgreSQL enqueue writes
+- [x] Replace Kafka publishing with PostgreSQL-backed enqueue writes through the notifier ingest API
 - [x] Keep existing HTTP endpoints:
   - [x] `POST /generate`
   - [x] `POST /generate/bulk`
@@ -87,26 +87,26 @@ Current implementation uses `FOR UPDATE SKIP LOCKED` in `ClaimAvailableDeliverie
 - [ ] Add queue polling and claim metrics
 - [ ] Add queue depth metrics
 - [ ] Add dead-letter record metrics sourced from PostgreSQL flow
-- [ ] Keep health endpoint behavior meaningful without Kafka
+- [x] Keep health endpoint behavior meaningful without Kafka
 
 ## Step 8: Update Tests
 
-- [ ] Remove or replace Kafka integration tests
-- [ ] Add PostgreSQL queue integration tests for:
+- [x] Remove or replace Kafka integration tests
+- [x] Add PostgreSQL queue integration tests for:
   - [x] enqueue and claim
   - [x] retry then success
   - [x] retry exhaustion to dead letter
-  - [ ] multi-customer fairness
+  - [x] multi-customer fairness
   - [x] concurrent claim safety
 - [x] Keep existing notifier fast integration coverage where still applicable
 - [ ] Add race coverage for the PostgreSQL polling and claim path
 
 ## Step 9: Update Local Tooling
 
-- [ ] Remove Kafka dependency from `scripts/start-local-stack.sh`
-- [ ] Remove Kafka dependency from `scripts/ensure-local-port-forwards.sh`
-- [ ] Remove Kafka-specific local troubleshooting steps
-- [ ] Keep one-command local startup working with PostgreSQL only
+- [x] Remove Kafka dependency from `scripts/start-local-stack.sh`
+- [x] Remove Kafka dependency from `scripts/ensure-local-port-forwards.sh`
+- [x] Remove Kafka-specific local troubleshooting steps
+- [x] Keep one-command local startup working with PostgreSQL only
 
 ## Step 10: Update CI
 
@@ -117,18 +117,18 @@ Current implementation uses `FOR UPDATE SKIP LOCKED` in `ClaimAvailableDeliverie
 
 ## Step 11: Update Documentation
 
-- [ ] Rewrite README runtime flow to use PostgreSQL queueing
+- [x] Rewrite README runtime flow to use PostgreSQL queueing
 - [ ] Update architecture diagrams
-- [ ] Update configuration documentation
-- [ ] Remove Kafka bootstrap instructions from README
-- [ ] Document how to inspect queued, retried, and dead-lettered jobs in PostgreSQL
+- [x] Update configuration documentation
+- [x] Remove Kafka bootstrap instructions from README
+- [x] Document how to inspect queued, retried, and dead-lettered jobs in PostgreSQL
 
 ## Step 12: Cleanup
 
-- [ ] Remove unused Kafka code paths
-- [ ] Remove unused Kafka configuration fields
-- [ ] Remove obsolete Kafka scripts and references
-- [ ] Remove obsolete Kafka-specific tests and workflow assumptions
+- [x] Remove unused Kafka code paths
+- [x] Remove unused Kafka configuration fields
+- [x] Remove obsolete Kafka scripts and references
+- [x] Remove obsolete Kafka-specific tests and workflow assumptions
 
 ## Open Decisions
 

@@ -84,7 +84,7 @@ func TestHandleGenerateBulkRejectsNegativeEventsPerCustomer(t *testing.T) {
 }
 
 func TestHandleGeneratePublishesDeterministicEventsToNotifier(t *testing.T) {
-	// Input: a seeded generate request for customer-a with count 2 and no Kafka publisher configured.
+	// Input: a seeded generate request for customer-a with count 2 and a notifier batch endpoint.
 	// Outcome: the handler forwards two deterministic events to the notifier batch endpoint and returns 202.
 	var publishedEvents []events.SubscriberEvent
 	notifierServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {

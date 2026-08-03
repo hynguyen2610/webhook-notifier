@@ -9,10 +9,6 @@ POSTGRES_LOCAL_ADDRESS="${POSTGRES_LOCAL_ADDRESS:-127.0.0.1:15432}"
 POSTGRES_PORT_FORWARD_TARGET="${POSTGRES_PORT_FORWARD_TARGET:-svc/user-org-db-service}"
 POSTGRES_PORT_FORWARD_NAMESPACE="${POSTGRES_PORT_FORWARD_NAMESPACE:-default}"
 
-KAFKA_LOCAL_ADDRESS="${KAFKA_LOCAL_ADDRESS:-127.0.0.1:9092}"
-KAFKA_PORT_FORWARD_TARGET="${KAFKA_PORT_FORWARD_TARGET:-pod/kafka-0}"
-KAFKA_PORT_FORWARD_NAMESPACE="${KAFKA_PORT_FORWARD_NAMESPACE:-default}"
-
 STARTED_PIDS=()
 
 cleanup() {
@@ -76,20 +72,11 @@ main() {
     "5432" \
     "${LOG_DIR}/postgres-port-forward.log"
 
-  ensure_port_forward \
-    "Kafka" \
-    "${KAFKA_LOCAL_ADDRESS}" \
-    "${KAFKA_PORT_FORWARD_NAMESPACE}" \
-    "${KAFKA_PORT_FORWARD_TARGET}" \
-    "${KAFKA_LOCAL_ADDRESS##*:}" \
-    "${LOG_DIR}/kafka-port-forward.log"
-
-  log "local port-forwards are ready"
+  log "local port-forward is ready"
   log "PostgreSQL: ${POSTGRES_LOCAL_ADDRESS}"
-  log "Kafka: ${KAFKA_LOCAL_ADDRESS}"
 
   if [[ "${KEEP_RUNNING:-true}" == "true" ]]; then
-    log "KEEP_RUNNING=true, leaving port-forward processes attached to this script"
+    log "KEEP_RUNNING=true, leaving port-forward process attached to this script"
     while true; do
       sleep 60
     done

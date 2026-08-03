@@ -13,11 +13,6 @@ POSTGRES_ADMIN_DSN="${POSTGRES_ADMIN_DSN:-postgres://postgres:password@127.0.0.1
 WEBHOOK_NOTIFIER_DB_NAME="${WEBHOOK_NOTIFIER_DB_NAME:-webhook_notifier}"
 NOTIFIER_POSTGRES_DSN="${NOTIFIER_POSTGRES_DSN:-postgres://postgres:password@127.0.0.1:15432/${WEBHOOK_NOTIFIER_DB_NAME}?sslmode=disable}"
 
-KAFKA_LOCAL_ADDRESS="${KAFKA_LOCAL_ADDRESS:-127.0.0.1:9092}"
-KAFKA_PORT_FORWARD_TARGET="${KAFKA_PORT_FORWARD_TARGET:-svc/kafka-service}"
-KAFKA_PORT_FORWARD_NAMESPACE="${KAFKA_PORT_FORWARD_NAMESPACE:-default}"
-KAFKA_HOST_OVERRIDES="${KAFKA_HOST_OVERRIDES:-kafka-service=127.0.0.1,kafka-service.default.svc.cluster.local=127.0.0.1}"
-
 NOTIFIER_HTTP_ADDRESS="${NOTIFIER_HTTP_ADDRESS:-:28080}"
 GENERATOR_HTTP_ADDRESS="${GENERATOR_HTTP_ADDRESS:-:28081}"
 RECEIVER_HTTP_ADDRESS="${RECEIVER_HTTP_ADDRESS:-:28082}"
@@ -26,8 +21,6 @@ NOTIFIER_BASE_URL="${NOTIFIER_BASE_URL:-http://localhost:28080}"
 GENERATOR_BASE_URL="${GENERATOR_BASE_URL:-http://localhost:28081}"
 RECEIVER_BASE_URL="${RECEIVER_BASE_URL:-http://localhost:28082}"
 
-NOTIFIER_TOPIC="${NOTIFIER_TOPIC:-subscriber-events}"
-NOTIFIER_DLQ_TOPIC="${NOTIFIER_DLQ_TOPIC:-subscriber-events-dlq}"
 GENERATOR_CUSTOMER_ID="${GENERATOR_CUSTOMER_ID:-customer-a}"
 GENERATOR_EVENT_TYPE="${GENERATOR_EVENT_TYPE:-subscriber.created}"
 GENERATOR_EVENT_COUNT="${GENERATOR_EVENT_COUNT:-5}"
@@ -185,32 +178,6 @@ ensure_postgres_port() {
   fail_with_message "PostgreSQL connection error: could not reach ${POSTGRES_LOCAL_ADDRESS} after 1s"
 }
 
-ensure_kafka_port() {
-  local kafka_host="${KAFKA_LOCAL_ADDRESS%%:*}"
-  local kafka_port="${KAFKA_LOCAL_ADDRESS##*:}"
-
-  if nc -z "${kafka_host}" "${kafka_port}" >/dev/null 2>&1; then
-    log "Kafka already reachable at ${KAFKA_LOCAL_ADDRESS}"
-    return 0
-  fi
-
-  log "starting Kafka port-forward to ${KAFKA_LOCAL_ADDRESS}"
-  kubectl port-forward -n "${KAFKA_PORT_FORWARD_NAMESPACE}" "${KAFKA_PORT_FORWARD_TARGET}" "${kafka_port}:${kafka_port}" >"${LOG_DIR}/kafka-port-forward.log" 2>&1 &
-  local process_id=$!
-  STARTED_PIDS+=("${process_id}")
-
-  sleep 1
-  if nc -z "${kafka_host}" "${kafka_port}" >/dev/null 2>&1; then
-    log "Kafka port-forward is ready"
-    return 0
-  fi
-
-  log "Kafka connection error: could not reach ${KAFKA_LOCAL_ADDRESS} after 1s"
-  log "Kafka port-forward log output:"
-  tail -n 120 "${LOG_DIR}/kafka-port-forward.log" || true
-  fail_with_message "Kafka connection error: could not reach ${KAFKA_LOCAL_ADDRESS} after 1s"
-}
-
 reset_receiver_stats() {
   curl -fsS -X POST "${RECEIVER_BASE_URL}/stats/reset" >/dev/null
 }
@@ -347,7 +314,6 @@ main() {
   cleanup_service_ports
   ensure_postgres_port
   bootstrap_database
-  ensure_kafka_port
 
   start_go_service_if_needed \
     "mock receiver" \
@@ -362,10 +328,6 @@ main() {
     "${LOG_DIR}/notifier.log" \
     NOTIFIER_HTTP_ADDRESS="${NOTIFIER_HTTP_ADDRESS}" \
     NOTIFIER_POSTGRES_DSN="${NOTIFIER_POSTGRES_DSN}" \
-    NOTIFIER_KAFKA_BROKERS="${KAFKA_LOCAL_ADDRESS}" \
-    NOTIFIER_KAFKA_HOST_OVERRIDES="${KAFKA_HOST_OVERRIDES}" \
-    NOTIFIER_KAFKA_TOPIC="${NOTIFIER_TOPIC}" \
-    NOTIFIER_KAFKA_DLQ_TOPIC="${NOTIFIER_DLQ_TOPIC}" \
     go run ./cmd/notifier
 
   start_go_service_if_needed \
@@ -373,9 +335,6 @@ main() {
     "${GENERATOR_BASE_URL}/health" \
     "${LOG_DIR}/mock-generator.log" \
     GENERATOR_HTTP_ADDRESS="${GENERATOR_HTTP_ADDRESS}" \
-    GENERATOR_KAFKA_BROKERS="${KAFKA_LOCAL_ADDRESS}" \
-    GENERATOR_KAFKA_HOST_OVERRIDES="${KAFKA_HOST_OVERRIDES}" \
-    GENERATOR_KAFKA_TOPIC="${NOTIFIER_TOPIC}" \
     GENERATOR_NOTIFIER_BASE_URL="${NOTIFIER_BASE_URL}" \
     go run ./cmd/mock-event-generator
 

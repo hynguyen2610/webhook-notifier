@@ -1,51 +1,52 @@
 # Webhook Notifier
 
-This project is a Go-based webhook notifier MVP.
+This project is a Go-based webhook notifier MVP built around a PostgreSQL-backed work queue.
 
 Current runtime flow:
 
-1. `mock-event-generator` publishes `SubscriberEvent` messages to Kafka
-2. `notifier` consumes events from Kafka
-3. `notifier` loads webhook endpoint registrations from PostgreSQL
-4. `notifier` schedules delivery jobs across customers
-5. workers send HTTP `POST` requests to customer webhook endpoints
-6. failed deliveries retry with exponential backoff
-7. exhausted deliveries are published to the DLQ topic
+1. `mock-event-generator` sends `SubscriberEvent` batches to the notifier HTTP ingest API
+2. `notifier` resolves webhook registrations from PostgreSQL
+3. `notifier` writes delivery jobs into a PostgreSQL queue table
+4. `notifier` polls and claims pending queue rows
+5. the round-robin scheduler shares work fairly across customers
+6. workers send HTTP `POST` requests to customer webhook endpoints
+7. failed deliveries retry with exponential backoff
+8. exhausted deliveries are marked as dead-lettered in PostgreSQL
 
 ## Current Status
 
 What is implemented now:
 
-- Kafka producer in the mock event generator
-- Kafka consumer in the notifier
 - PostgreSQL-backed webhook registration lookup
+- PostgreSQL-backed delivery queue
 - round-robin scheduler
 - configurable worker pool
 - retry with exponential backoff
 - mock webhook receiver for local testing
+- mock event generator for local testing
 - health, stats, registration snapshot, DLQ, and Prometheus metrics endpoints
+- PostgreSQL-backed integration coverage for queue and registration behavior
 
-What is not fully validated yet:
+What is still incomplete:
 
-- full live end-to-end flow against your real Kafka and PostgreSQL environment
-- integration tests for the complete runtime path
-- final outbound webhook payload contract split from the Kafka event contract
+- final outbound webhook payload contract split from the internal subscriber event contract
+- deeper observability around queue depth and polling behavior
+- architecture diagrams and older planning docs still need broader cleanup
 
 ## Prerequisites
 
 - Go `1.26.4` or compatible
-- Kafka reachable from the machine running the apps
-- PostgreSQL reachable from the machine running the notifier
+- PostgreSQL reachable from the machine running the apps
 
 Known Kubernetes services already present in your environment:
 
-- Kafka: `kafka-service.default.svc.cluster.local:9092`
+- PostgreSQL service used by these scripts: `user-org-db-service.default.svc.cluster.local:5432`
 - Prometheus: `prometheus.monitoring.svc.cluster.local:9090`
 - Grafana: `grafana.monitoring.svc.cluster.local:3000`
 
 ## Registration Schema Assumption
 
-The notifier currently expects webhook registrations to be readable with these default queries:
+The notifier expects webhook registrations to be readable with these default queries:
 
 ```sql
 SELECT webhook_url
@@ -82,45 +83,43 @@ VALUES
   ('customer-c', 'http://localhost:28082/webhook/customer-c', TRUE);
 ```
 
-Shell script to create the database if it does not already exist, then create the table and seed rows:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-POSTGRES_ADMIN_DSN="${POSTGRES_ADMIN_DSN:-postgres://postgres:password@localhost:5432/postgres?sslmode=disable}"
-WEBHOOK_NOTIFIER_DB_NAME="${WEBHOOK_NOTIFIER_DB_NAME:-webhook_notifier}"
-
-database_exists="$(
-  psql "$POSTGRES_ADMIN_DSN" -tAc "SELECT 1 FROM pg_database WHERE datname = '${WEBHOOK_NOTIFIER_DB_NAME}'"
-)"
-
-if [ "$database_exists" != "1" ]; then
-  psql "$POSTGRES_ADMIN_DSN" -c "CREATE DATABASE ${WEBHOOK_NOTIFIER_DB_NAME}"
-fi
-
-NOTIFIER_DATABASE_DSN="${NOTIFIER_DATABASE_DSN:-postgres://postgres:password@localhost:5432/${WEBHOOK_NOTIFIER_DB_NAME}?sslmode=disable}"
-
-psql "$NOTIFIER_DATABASE_DSN" <<'SQL'
-CREATE TABLE IF NOT EXISTS webhook_registrations (
-  customer_id TEXT NOT NULL,
-  webhook_url TEXT NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE
-);
-
-INSERT INTO webhook_registrations (customer_id, webhook_url, is_active)
-VALUES
-  ('customer-a', 'http://localhost:28082/webhook/customer-a', TRUE),
-  ('customer-b', 'http://localhost:28082/webhook/customer-b', TRUE),
-  ('customer-c', 'http://localhost:28082/webhook/customer-c', TRUE)
-ON CONFLICT DO NOTHING;
-SQL
-```
-
 If your schema is different, override:
 
 - `NOTIFIER_REGISTRATION_RESOLVE_QUERY`
 - `NOTIFIER_REGISTRATION_SNAPSHOT_QUERY`
+
+## Queue Schema
+
+The notifier creates its PostgreSQL queue table automatically on startup:
+
+```sql
+CREATE TABLE IF NOT EXISTS webhook_delivery_queue (
+  id BIGSERIAL PRIMARY KEY,
+  event_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  subscriber_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  occurred_at TIMESTAMPTZ NOT NULL,
+  webhook_url TEXT NOT NULL,
+  status TEXT NOT NULL,
+  available_at TIMESTAMPTZ NOT NULL,
+  claimed_at TIMESTAMPTZ NULL,
+  claim_owner TEXT NULL,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT NULL,
+  dead_lettered_at TIMESTAMPTZ NULL,
+  completed_at TIMESTAMPTZ NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+```
+
+Useful queue states:
+
+- `pending`
+- `claimed`
+- `completed`
+- `dead_lettered`
 
 ## Environment Variables
 
@@ -137,12 +136,9 @@ Common:
 - `NOTIFIER_REQUEST_TIMEOUT` default: `5s`
 - `NOTIFIER_MAX_RETRY_ATTEMPTS` default: `3`
 - `NOTIFIER_INITIAL_RETRY_DELAY` default: `1s`
+- `NOTIFIER_QUEUE_CLAIM_BATCH_SIZE` default: `32`
+- `NOTIFIER_QUEUE_POLL_INTERVAL` default: `250ms`
 - `NOTIFIER_LOG_LEVEL` default: `INFO`
-- `NOTIFIER_KAFKA_BROKERS` default: empty
-- `NOTIFIER_KAFKA_HOST_OVERRIDES` default: empty
-- `NOTIFIER_KAFKA_TOPIC` default: `subscriber-events`
-- `NOTIFIER_KAFKA_CONSUMER_GROUP` default: `webhook-notifier`
-- `NOTIFIER_KAFKA_DLQ_TOPIC` default: `subscriber-events-dlq`
 - `NOTIFIER_REGISTRATION_RESOLVE_QUERY`
 - `NOTIFIER_REGISTRATION_SNAPSHOT_QUERY`
 
@@ -153,67 +149,56 @@ Common:
 - `GENERATOR_DEFAULT_CUSTOMER_COUNT` default: `5`
 - `GENERATOR_RANDOM_SEED` default: current timestamp
 - `GENERATOR_LOG_LEVEL` default: `INFO`
-- `GENERATOR_KAFKA_BROKERS` default: empty
-- `GENERATOR_KAFKA_HOST_OVERRIDES` default: empty
-- `GENERATOR_KAFKA_TOPIC` default: `subscriber-events`
 
 ### Mock Webhook Receiver
 
 - `RECEIVER_HTTP_ADDRESS` default: `:28082`
 - `RECEIVER_LOG_LEVEL` default: `INFO`
 
-## Run The Kafka-Backed Flow
+## Run The PostgreSQL-Backed Flow
 
 Recommended run order:
 
 1. start PostgreSQL and seed webhook registrations
-2. make Kafka reachable from your local machine
-3. start mock webhook receiver
-4. start notifier
-5. start mock event generator
-6. generate test events
+2. start mock webhook receiver
+3. start notifier
+4. start mock event generator
+5. generate test events
 
-### 1a. Make Kafka Reachable From Local Development
+### Fastest Local Start
 
-Your Kafka broker currently advertises:
-
-```text
-PLAINTEXT://kafka-service:9092
-```
-
-That host name works inside Kubernetes, but not from a normal shell on your machine.
-
-For local development, use a `kubectl port-forward` and Kafka host overrides:
+If you want one command that ensures PostgreSQL local access, bootstraps the database, and starts the receiver, notifier, and generator together, use:
 
 ```bash
-kubectl port-forward -n default svc/kafka-service 9092:9092
+scripts/start-local-stack.sh
 ```
 
-Then set the Kafka host override env vars so the Kafka client rewrites the broker's advertised name:
+This script keeps running until you stop it with `Ctrl+C`.
 
-```bash
-NOTIFIER_KAFKA_HOST_OVERRIDES='kafka-service=127.0.0.1,kafka-service.default.svc.cluster.local=127.0.0.1'
-GENERATOR_KAFKA_HOST_OVERRIDES='kafka-service=127.0.0.1,kafka-service.default.svc.cluster.local=127.0.0.1'
-```
+It writes logs to:
 
-Without this override, a local run will fail because the broker metadata points clients back to `kafka-service:9092`.
+- `.tmp/local-stack/port-forwards.log`
+- `.tmp/local-stack/mock-receiver.log`
+- `.tmp/local-stack/notifier.log`
+- `.tmp/local-stack/mock-generator.log`
 
-If you want a single helper to prepare both PostgreSQL and Kafka local access, use:
+### 1. Make PostgreSQL Reachable From Local Development
+
+If you want a helper that prepares PostgreSQL local access and keeps the port-forward running in the current terminal, use:
 
 ```bash
 scripts/ensure-local-port-forwards.sh
 ```
 
-To keep the port-forwards attached to the helper process until you stop it:
+If you explicitly want the helper to exit and clean up the port-forward when it finishes, set:
 
 ```bash
-KEEP_RUNNING=true scripts/ensure-local-port-forwards.sh
+KEEP_RUNNING=false scripts/ensure-local-port-forwards.sh
 ```
 
-Default forwarded addresses:
+Default forwarded address:
 
 - PostgreSQL: `127.0.0.1:15432`
-- Kafka: `127.0.0.1:9092`
 
 ### 2. Start The Mock Receiver
 
@@ -229,14 +214,10 @@ curl -sS http://localhost:28082/health
 
 ### 3. Start The Notifier
 
-Example using local port-forwarded Kafka and a local PostgreSQL DSN:
+Example using the default local port-forwarded PostgreSQL address:
 
 ```bash
-NOTIFIER_POSTGRES_DSN='postgres://postgres:password@localhost:5432/webhook_notifier?sslmode=disable' \
-NOTIFIER_KAFKA_BROKERS='127.0.0.1:9092' \
-NOTIFIER_KAFKA_HOST_OVERRIDES='kafka-service=127.0.0.1,kafka-service.default.svc.cluster.local=127.0.0.1' \
-NOTIFIER_KAFKA_TOPIC='subscriber-events' \
-NOTIFIER_KAFKA_DLQ_TOPIC='subscriber-events-dlq' \
+NOTIFIER_POSTGRES_DSN='postgres://postgres:password@127.0.0.1:15432/webhook_notifier?sslmode=disable' \
 go run ./cmd/notifier
 ```
 
@@ -258,12 +239,8 @@ Available endpoints:
 
 ### 4. Start The Mock Event Generator
 
-Kafka-backed mode:
-
 ```bash
-GENERATOR_KAFKA_BROKERS='127.0.0.1:9092' \
-GENERATOR_KAFKA_HOST_OVERRIDES='kafka-service=127.0.0.1,kafka-service.default.svc.cluster.local=127.0.0.1' \
-GENERATOR_KAFKA_TOPIC='subscriber-events' \
+GENERATOR_NOTIFIER_BASE_URL='http://localhost:28080' \
 go run ./cmd/mock-event-generator
 ```
 
@@ -274,6 +251,8 @@ curl -sS http://localhost:28081/health
 ```
 
 ### 5. Generate Events
+
+Before generating events, keep the terminal running `scripts/ensure-local-port-forwards.sh` or `scripts/start-local-stack.sh` open. If that helper exits, the PostgreSQL forward stops and the notifier will lose database connectivity.
 
 Single customer batch:
 
@@ -310,6 +289,22 @@ Mixed scenario:
 curl -sS -X POST http://localhost:28081/scenario/mixed
 ```
 
+### Full Flow Smoke Test
+
+Run the end-to-end local verification script:
+
+```bash
+scripts/test-full-flow.sh
+```
+
+This script:
+
+- ensures PostgreSQL local access
+- seeds registration rows
+- starts the receiver, notifier, and generator
+- sends test events through the generator
+- verifies receiver statistics for the expected customer
+
 ## Verify The Flow
 
 Check receiver statistics:
@@ -340,6 +335,13 @@ Check metrics:
 
 ```bash
 curl -sS http://localhost:28080/metrics
+```
+
+Inspect queue state directly in PostgreSQL:
+
+```bash
+psql 'postgres://postgres:password@127.0.0.1:15432/webhook_notifier?sslmode=disable' \
+  -c "SELECT status, customer_id, event_id, retry_count, dead_lettered_at FROM webhook_delivery_queue ORDER BY id DESC LIMIT 20"
 ```
 
 ## Simulate Receiver Failures
@@ -382,11 +384,9 @@ Reset receiver stats:
 curl -sS -X POST http://localhost:28082/stats/reset
 ```
 
-## Dev-Only HTTP Fallback
+## Direct Ingest API
 
-The notifier still exposes `POST /events` and `POST /events/batch`.
-
-That path is useful for quick local development, but the intended runtime flow is Kafka-first. Prefer the generator-to-Kafka path for normal validation.
+The notifier ingest endpoints are part of the normal PostgreSQL-backed runtime, not just a fallback path.
 
 Example direct notifier batch request:
 
@@ -406,10 +406,10 @@ curl -sS -X POST http://localhost:28080/events/batch \
 
 ## Test Commands
 
-Run the focused unit tests that exist today:
+Run the focused unit and integration coverage that exercises the PostgreSQL-backed path:
 
 ```bash
-go test ./internal/registration ./internal/retry ./internal/scheduler
+go test ./internal/mockgenerator ./internal/notifier ./internal/registration ./internal/retry ./internal/scheduler ./internal/workqueue
 ```
 
 Run the whole repository:
@@ -420,6 +420,6 @@ go test ./...
 
 ## Known Gaps
 
-- full end-to-end integration tests are still missing
-- outbound webhook payload is still the same shape as the Kafka event
-- live verification against your exact PostgreSQL schema still needs to be completed
+- outbound webhook payload is still the same shape as the internal subscriber event
+- queue polling and queue depth metrics can be improved
+- some older planning and diagram docs still describe the retired Kafka architecture

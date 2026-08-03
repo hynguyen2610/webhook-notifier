@@ -1,14 +1,16 @@
 # Mock Event Generator Specification
 
-**Version:** 1.0
+**Version:** 1.1
 
 ---
 
 # Purpose
 
-The Mock Event Generator simulates F-Company publishing subscriber events into Kafka.
+The Mock Event Generator simulates upstream subscriber event creation for local
+development, integration testing, benchmarking, and demonstration.
 
-It is intended solely for local development, integration testing, benchmarking, and demonstration.
+It sends generated events to the notifier HTTP ingest API, which then persists
+delivery work in PostgreSQL.
 
 It is **not** part of the production notification system.
 
@@ -20,7 +22,7 @@ It is **not** part of the production notification system.
 - Produce configurable event volumes.
 - Simulate whale customers.
 - Support repeatable benchmark scenarios.
-- Eliminate dependency on F-Company.
+- Eliminate dependency on upstream systems.
 
 ---
 
@@ -29,7 +31,7 @@ It is **not** part of the production notification system.
 The generator will not:
 
 - Validate business rules.
-- Persist generated events.
+- Persist generated events directly.
 - Simulate webhook delivery.
 - Manage webhook registrations.
 
@@ -45,11 +47,11 @@ Event Generator
 
 ↓
 
-Kafka Producer
+Notifier Ingest API
 
 ↓
 
-Kafka Topic
+PostgreSQL Work Queue
 
 ---
 
@@ -75,8 +77,7 @@ Additional fields may be added as required.
 
 | Property | Description |
 |------------|-------------|
-| Kafka Broker | Kafka bootstrap server |
-| Topic | Event topic |
+| Notifier Base URL | Base URL for notifier ingest endpoints |
 | Default Customer Count | Number of generated customers |
 | Random Seed | Optional deterministic generation |
 
@@ -171,7 +172,7 @@ Produces
 
 ```
 Customer A
-100000 events
+2000 events
 
 Customer B
 100 events
@@ -231,20 +232,20 @@ The following scenarios should be available.
 ```
 1 customer
 
-100000 events
+2000 events
 
-20 normal customers
+2 normal customers
 
-500 events each
+100 events each
 ```
 
 ---
 
 # Success Criteria
 
-Generator successfully publishes all requested events into Kafka.
+Generator successfully submits all requested events to the notifier ingest API.
 
-No delivery guarantees are required beyond Kafka producer acknowledgements.
+The notifier accepts the requests and persists the resulting delivery work in PostgreSQL.
 
 ---
 
