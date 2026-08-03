@@ -215,6 +215,27 @@ reset_receiver_stats() {
   curl -fsS -X POST "${RECEIVER_BASE_URL}/stats/reset" >/dev/null
 }
 
+read_json_number_field() {
+  local json_payload="$1"
+  local field_name="$2"
+
+  sed -n "s/.*\"${field_name}\":\([0-9][0-9]*\).*/\1/p" <<<"${json_payload}" | head -n 1
+}
+
+read_last_event_field() {
+  local json_payload="$1"
+  local field_name="$2"
+
+  sed -n "s/.*\"lastEvent\":{[^}]*\"${field_name}\":\"\([^\"]*\)\".*/\1/p" <<<"${json_payload}" | head -n 1
+}
+
+read_event_type_count() {
+  local json_payload="$1"
+  local event_type="$2"
+
+  sed -n "s/.*\"${event_type}\":\([0-9][0-9]*\).*/\1/p" <<<"${json_payload}" | head -n 1
+}
+
 generate_events() {
   log "sending test events through generator"
   local response_file="${LOG_DIR}/generator-response.json"
@@ -265,6 +286,63 @@ assert_receiver_received_events() {
   fail_with_message "receiver did not observe ${GENERATOR_EVENT_COUNT} webhook requests in time"
 }
 
+assert_customer_delivery_stats() {
+  local customer_id="$1"
+  local expected_received="$2"
+  local expected_event_type="${3:-}"
+  local customer_stats_json
+
+  customer_stats_json="$(curl -fsS "${RECEIVER_BASE_URL}/stats/customer/${customer_id}")"
+
+  local received_count
+  received_count="$(read_json_number_field "${customer_stats_json}" "received")"
+  received_count="${received_count:-0}"
+  if [[ "${received_count}" -ne "${expected_received}" ]]; then
+    log "unexpected receiver stats for ${customer_id}: ${customer_stats_json}"
+    fail_with_message "expected ${expected_received} deliveries for ${customer_id}, got ${received_count}"
+  fi
+
+  local payload_decode_failures
+  payload_decode_failures="$(read_json_number_field "${customer_stats_json}" "payloadDecodeFailures")"
+  payload_decode_failures="${payload_decode_failures:-0}"
+  if [[ "${payload_decode_failures}" -ne 0 ]]; then
+    log "unexpected receiver stats for ${customer_id}: ${customer_stats_json}"
+    fail_with_message "receiver could not decode ${payload_decode_failures} payloads for ${customer_id}"
+  fi
+
+  local customer_mismatches
+  customer_mismatches="$(read_json_number_field "${customer_stats_json}" "pathPayloadCustomerMismatches")"
+  customer_mismatches="${customer_mismatches:-0}"
+  if [[ "${customer_mismatches}" -ne 0 ]]; then
+    log "unexpected receiver stats for ${customer_id}: ${customer_stats_json}"
+    fail_with_message "receiver observed ${customer_mismatches} customer mismatches for ${customer_id}"
+  fi
+
+  if [[ -n "${expected_event_type}" && "${expected_received}" -gt 0 ]]; then
+    local event_type_count
+    event_type_count="$(read_event_type_count "${customer_stats_json}" "${expected_event_type}")"
+    event_type_count="${event_type_count:-0}"
+    if [[ "${event_type_count}" -ne "${expected_received}" ]]; then
+      log "unexpected receiver stats for ${customer_id}: ${customer_stats_json}"
+      fail_with_message "expected ${expected_received} ${expected_event_type} payloads for ${customer_id}, got ${event_type_count}"
+    fi
+
+    local last_event_customer_id
+    last_event_customer_id="$(read_last_event_field "${customer_stats_json}" "customerId")"
+    if [[ "${last_event_customer_id}" != "${customer_id}" ]]; then
+      log "unexpected receiver stats for ${customer_id}: ${customer_stats_json}"
+      fail_with_message "expected last payload customerId ${customer_id}, got ${last_event_customer_id:-<empty>}"
+    fi
+
+    local last_event_type
+    last_event_type="$(read_last_event_field "${customer_stats_json}" "eventType")"
+    if [[ "${last_event_type}" != "${expected_event_type}" ]]; then
+      log "unexpected receiver stats for ${customer_id}: ${customer_stats_json}"
+      fail_with_message "expected last payload eventType ${expected_event_type}, got ${last_event_type:-<empty>}"
+    fi
+  fi
+}
+
 main() {
   cleanup_service_ports
   ensure_postgres_port
@@ -304,6 +382,9 @@ main() {
   reset_receiver_stats
   generate_events
   assert_receiver_received_events
+  assert_customer_delivery_stats "customer-a" "${GENERATOR_EVENT_COUNT}" "${GENERATOR_EVENT_TYPE}"
+  assert_customer_delivery_stats "customer-b" 0
+  assert_customer_delivery_stats "customer-c" 0
 
   log "full flow test passed"
 }
