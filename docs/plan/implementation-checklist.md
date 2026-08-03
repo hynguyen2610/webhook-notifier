@@ -182,7 +182,7 @@ This checklist translates the current requirement and planning documents into an
 
 - [ ] Add `Dockerfile` for notifier
 - [ ] Add local `docker-compose.yml` for Kafka and supporting services
-- [ ] Add runnable local stack for notifier, generator, and receiver
+- [x] Add runnable local stack for notifier, generator, and receiver
 - [ ] Add sample environment files
 - [ ] Add Mermaid diagram references or generated architecture images to README
 
