@@ -17,7 +17,7 @@ STARTED_PIDS=()
 
 cleanup() {
   local exit_code=$?
-  if [[ "${KEEP_RUNNING:-false}" != "true" ]]; then
+  if [[ "${KEEP_RUNNING:-true}" != "true" ]]; then
     for process_id in "${STARTED_PIDS[@]:-}"; do
       if kill -0 "${process_id}" >/dev/null 2>&1; then
         kill "${process_id}" >/dev/null 2>&1 || true
@@ -88,7 +88,7 @@ main() {
   log "PostgreSQL: ${POSTGRES_LOCAL_ADDRESS}"
   log "Kafka: ${KAFKA_LOCAL_ADDRESS}"
 
-  if [[ "${KEEP_RUNNING:-false}" == "true" ]]; then
+  if [[ "${KEEP_RUNNING:-true}" == "true" ]]; then
     log "KEEP_RUNNING=true, leaving port-forward processes attached to this script"
     while true; do
       sleep 60
