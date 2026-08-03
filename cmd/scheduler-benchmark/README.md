@@ -33,6 +33,7 @@ The tool currently benchmarks these workloads:
 - `single-customer-burst`: one customer with a large burst of queued jobs
 - `balanced-three-customers`: three customers with evenly distributed jobs
 - `whale-scenario`: one whale customer plus smaller customers mixed into the same workload
+- `huge-mixed-customer-load`: a much larger mixed workload intended to make growth in `ns/op`, allocations, and bytes easier to compare across runs
 
 ## Output
 

@@ -45,6 +45,16 @@ func main() {
 			"customer-c": 128,
 			"customer-d": 128,
 		}),
+		newScenario("huge-mixed-customer-load", map[string]int{
+			"customer-a": 16384,
+			"customer-b": 4096,
+			"customer-c": 4096,
+			"customer-d": 4096,
+			"customer-e": 4096,
+			"customer-f": 4096,
+			"customer-g": 4096,
+			"customer-h": 4096,
+		}),
 	}
 
 	summaries := make([]benchmarkSummary, 0, len(scenarios))

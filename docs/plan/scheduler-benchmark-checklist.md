@@ -13,6 +13,7 @@
 - [x] Single-customer burst workload
 - [x] Balanced multi-customer workload
 - [x] Whale scenario workload with smaller customers mixed in
+- [x] Huge mixed workload to show scaling behavior at larger data sizes
 
 ## Validation
 
