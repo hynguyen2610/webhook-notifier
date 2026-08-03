@@ -7,13 +7,16 @@ import (
 	"time"
 )
 
-func buildHTMLReport(reportTime time.Time, summaries []benchmarkSummary) string {
+func buildHTMLReport(reportTime time.Time, schedulerSummaries []benchmarkSummary, workerScalingSummaries []workerScalingSummary) string {
 	var builder strings.Builder
 	maxNsPerOp := int64(1)
 	maxAllocsPerOp := int64(1)
 	maxBytesPerOp := int64(1)
+	maxJobsPerSecond := 1.0
+	maxSpeedup := 1.0
+	maxEfficiency := 1.0
 
-	for _, summary := range summaries {
+	for _, summary := range schedulerSummaries {
 		if summary.nsPerOp > maxNsPerOp {
 			maxNsPerOp = summary.nsPerOp
 		}
@@ -22,6 +25,17 @@ func buildHTMLReport(reportTime time.Time, summaries []benchmarkSummary) string 
 		}
 		if summary.bytesPerOp > maxBytesPerOp {
 			maxBytesPerOp = summary.bytesPerOp
+		}
+	}
+	for _, summary := range workerScalingSummaries {
+		if summary.jobsPerSecond > maxJobsPerSecond {
+			maxJobsPerSecond = summary.jobsPerSecond
+		}
+		if summary.speedup > maxSpeedup {
+			maxSpeedup = summary.speedup
+		}
+		if summary.efficiency > maxEfficiency {
+			maxEfficiency = summary.efficiency
 		}
 	}
 
@@ -60,13 +74,13 @@ func buildHTMLReport(reportTime time.Time, summaries []benchmarkSummary) string 
 	builder.WriteString("</style>\n</head>\n<body>\n<div class=\"page\">\n")
 	builder.WriteString("<section class=\"hero\">\n")
 	builder.WriteString("<h1>Scheduler Benchmark Report</h1>\n")
-	builder.WriteString("<p>This benchmark measures the round-robin scheduler end-to-end within one benchmark iteration: enqueue jobs, emit scheduled jobs, and drain the scheduler output channel. It also calculates jobs per second so larger workloads are easier to compare.</p>\n")
+	builder.WriteString("<p>This report measures scheduler overhead by workload and demonstrates horizontal scale by running the same delivery load test with higher worker counts. Jobs per second, speedup, and efficiency make the scale-up trend easy to compare.</p>\n")
 	builder.WriteString(fmt.Sprintf("<div class=\"meta\">Generated at %s UTC</div>\n", reportTime.Format("2006-01-02 15:04:05")))
 	builder.WriteString("</section>\n")
-	builder.WriteString("<section class=\"section\">\n<h2>Results Table</h2>\n<div class=\"table-wrap\">\n")
+	builder.WriteString("<section class=\"section\">\n<h2>Scheduler Results</h2>\n<div class=\"table-wrap\">\n")
 	builder.WriteString("<table>\n<thead><tr><th>Scenario</th><th class=\"num\">Jobs / iteration</th><th class=\"num\">ns/op</th><th class=\"num\">allocs/op</th><th class=\"num\">bytes/op</th><th class=\"num\">ops/sec</th><th class=\"num\">jobs/sec</th></tr></thead>\n<tbody>\n")
 
-	for _, summary := range summaries {
+	for _, summary := range schedulerSummaries {
 		builder.WriteString(fmt.Sprintf(
 			"<tr><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%.2f</td><td class=\"num\">%.2f</td></tr>\n",
 			html.EscapeString(summary.name),
@@ -81,12 +95,73 @@ func buildHTMLReport(reportTime time.Time, summaries []benchmarkSummary) string 
 
 	builder.WriteString("</tbody>\n</table>\n</div>\n</section>\n")
 	builder.WriteString("<section class=\"section\">\n<h2>Charts</h2>\n<div class=\"charts\">\n")
-	builder.WriteString(buildHTMLChartCard("Latency by Scenario (ns/op)", summaries, maxNsPerOp, "ns", ""))
-	builder.WriteString(buildHTMLChartCard("Allocations by Scenario (allocs/op)", summaries, maxAllocsPerOp, "allocs", "alt"))
-	builder.WriteString(buildHTMLChartCard("Memory by Scenario (bytes/op)", summaries, maxBytesPerOp, "bytes", "cool"))
+	builder.WriteString(buildHTMLChartCard("Latency by Scenario (ns/op)", schedulerSummaries, maxNsPerOp, "ns", ""))
+	builder.WriteString(buildHTMLChartCard("Allocations by Scenario (allocs/op)", schedulerSummaries, maxAllocsPerOp, "allocs", "alt"))
+	builder.WriteString(buildHTMLChartCard("Memory by Scenario (bytes/op)", schedulerSummaries, maxBytesPerOp, "bytes", "cool"))
 	builder.WriteString("</div>\n<div class=\"footnote\">Longer bars represent larger cost per benchmark iteration. Use these charts to compare how scheduler overhead grows as the workload gets larger.</div>\n</section>\n")
+	builder.WriteString("<section class=\"section\">\n<h2>Worker Scaling Load Test</h2>\n<div class=\"table-wrap\">\n")
+	builder.WriteString("<table>\n<thead><tr><th>Workers</th><th class=\"num\">Jobs</th><th class=\"num\">Duration</th><th class=\"num\">jobs/sec</th><th class=\"num\">speedup</th><th class=\"num\">efficiency</th></tr></thead>\n<tbody>\n")
+	for _, summary := range workerScalingSummaries {
+		builder.WriteString(fmt.Sprintf(
+			"<tr><td>%d</td><td class=\"num\">%d</td><td class=\"num\">%s</td><td class=\"num\">%.2f</td><td class=\"num\">%.2fx</td><td class=\"num\">%.1f%%</td></tr>\n",
+			summary.workerCount,
+			summary.jobCount,
+			summary.totalDuration.Round(time.Millisecond),
+			summary.jobsPerSecond,
+			summary.speedup,
+			summary.efficiency*100,
+		))
+	}
+	builder.WriteString("</tbody>\n</table>\n</div>\n</section>\n")
+	builder.WriteString("<section class=\"section\">\n<h2>Scaling Charts</h2>\n<div class=\"charts\">\n")
+	builder.WriteString(buildHTMLFloatChartCard("Throughput by Worker Count (jobs/sec)", workerScalingSummaries, maxJobsPerSecond, "jobs/sec", "cool"))
+	builder.WriteString(buildHTMLFloatChartCard("Speedup vs 1 Worker", workerScalingSummaries, maxSpeedup, "x", ""))
+	builder.WriteString(buildHTMLFloatChartCard("Efficiency by Worker Count", workerScalingSummaries, maxEfficiency, "%", "alt"))
+	builder.WriteString("</div>\n<div class=\"footnote\">Speedup uses the 1-worker run as the baseline. Efficiency is speedup divided by worker count, which helps show how much useful parallelism each extra worker adds.</div>\n</section>\n")
 	builder.WriteString("</div>\n</body>\n</html>\n")
 
+	return builder.String()
+}
+
+func buildHTMLFloatChartCard(title string, summaries []workerScalingSummary, maxValue float64, unit string, fillClass string) string {
+	var builder strings.Builder
+
+	builder.WriteString("<article class=\"chart-card\">\n")
+	builder.WriteString(fmt.Sprintf("<h3>%s</h3>\n", html.EscapeString(title)))
+	builder.WriteString("<div class=\"bar-list\">\n")
+
+	for _, summary := range summaries {
+		metricValue := summary.jobsPerSecond
+		switch unit {
+		case "x":
+			metricValue = summary.speedup
+		case "%":
+			metricValue = summary.efficiency * 100
+		}
+
+		barWidth := 0.0
+		if maxValue > 0 {
+			scaleMaxValue := maxValue
+			if unit == "%" {
+				scaleMaxValue = maxValue * 100
+			}
+			barWidth = (metricValue / scaleMaxValue) * 100
+		}
+
+		builder.WriteString("<div class=\"bar-row\">\n")
+		builder.WriteString(fmt.Sprintf("<div class=\"bar-label\">%d workers</div>\n", summary.workerCount))
+		builder.WriteString("<div class=\"bar-track\">")
+		builder.WriteString(fmt.Sprintf("<div class=\"bar-fill %s\" style=\"width:%.2f%%\"></div>", fillClass, barWidth))
+		builder.WriteString("</div>\n")
+		if unit == "%" {
+			builder.WriteString(fmt.Sprintf("<div class=\"bar-value\">%.1f%s</div>\n", metricValue, unit))
+		} else {
+			builder.WriteString(fmt.Sprintf("<div class=\"bar-value\">%.2f %s</div>\n", metricValue, unit))
+		}
+		builder.WriteString("</div>\n")
+	}
+
+	builder.WriteString("</div>\n</article>\n")
 	return builder.String()
 }
 

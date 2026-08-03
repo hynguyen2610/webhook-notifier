@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,7 +32,7 @@ type benchmarkSummary struct {
 
 func main() {
 	reportTime := time.Now().UTC()
-	scenarios := []benchmarkScenario{
+	schedulerScenarios := []benchmarkScenario{
 		newScenario("single-customer-burst", map[string]int{
 			"customer-a": 1024,
 		}),
@@ -58,15 +59,21 @@ func main() {
 		}),
 	}
 
-	summaries := make([]benchmarkSummary, 0, len(scenarios))
-	for _, scenario := range scenarios {
-		summaries = append(summaries, runScenarioBenchmark(scenario))
+	schedulerSummaries := make([]benchmarkSummary, 0, len(schedulerScenarios))
+	for _, scenario := range schedulerScenarios {
+		schedulerSummaries = append(schedulerSummaries, runScenarioBenchmark(scenario))
 	}
 
-	consoleReportContent := buildConsoleReport(reportTime, summaries)
+	workerScalingSummaries, workerScalingError := runWorkerScalingLoadTest()
+	if workerScalingError != nil {
+		fmt.Fprintf(os.Stderr, "run worker scaling load test: %v\n", workerScalingError)
+		os.Exit(1)
+	}
+
+	consoleReportContent := buildConsoleReport(reportTime, schedulerSummaries, workerScalingSummaries)
 	fmt.Print(consoleReportContent)
 
-	reportContent := buildHTMLReport(reportTime, summaries)
+	reportContent := buildHTMLReport(reportTime, schedulerSummaries, workerScalingSummaries)
 
 	reportPath, writeError := writeReport(reportTime, reportContent)
 	if writeError != nil {
@@ -74,7 +81,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("\nSaved report to %s\n", reportPath)
+	fmt.Printf("\nSaved report to %s\n", buildTerminalFileLink(reportPath))
 }
 
 func newScenario(name string, eventsPerCustomer map[string]int) benchmarkScenario {
@@ -162,7 +169,7 @@ func runScenarioBenchmark(scenario benchmarkScenario) benchmarkSummary {
 	}
 }
 
-func buildConsoleReport(reportTime time.Time, summaries []benchmarkSummary) string {
+func buildConsoleReport(reportTime time.Time, schedulerSummaries []benchmarkSummary, workerScalingSummaries []workerScalingSummary) string {
 	var builder strings.Builder
 
 	builder.WriteString("Scheduler Benchmark Report\n\n")
@@ -171,7 +178,7 @@ func buildConsoleReport(reportTime time.Time, summaries []benchmarkSummary) stri
 	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s %14s\n", "Scenario", "Jobs/iter", "ns/op", "allocs/op", "bytes/op", "ops/sec", "jobs/sec"))
 	builder.WriteString(fmt.Sprintf("%-28s %14s %12s %12s %12s %12s %14s\n", strings.Repeat("-", 28), strings.Repeat("-", 14), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 14)))
 
-	for _, summary := range summaries {
+	for _, summary := range schedulerSummaries {
 		builder.WriteString(fmt.Sprintf(
 			"%-28s %14d %12d %12d %12d %12.2f %14.2f\n",
 			summary.name,
@@ -181,6 +188,23 @@ func buildConsoleReport(reportTime time.Time, summaries []benchmarkSummary) stri
 			summary.bytesPerOp,
 			summary.throughputOps,
 			summary.jobsPerSecond,
+		))
+	}
+
+	builder.WriteString("\nWorker Scaling Load Test\n\n")
+	builder.WriteString("This load test keeps the same queued workload and receiver latency while increasing worker count to show throughput scaling.\n\n")
+	builder.WriteString(fmt.Sprintf("%-12s %12s %14s %14s %10s %12s\n", "Workers", "Jobs", "Duration", "jobs/sec", "Speedup", "Efficiency"))
+	builder.WriteString(fmt.Sprintf("%-12s %12s %14s %14s %10s %12s\n", strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 14), strings.Repeat("-", 14), strings.Repeat("-", 10), strings.Repeat("-", 12)))
+
+	for _, summary := range workerScalingSummaries {
+		builder.WriteString(fmt.Sprintf(
+			"%-12d %12d %14s %14.2f %10.2fx %11.1f%%\n",
+			summary.workerCount,
+			summary.jobCount,
+			summary.totalDuration.Round(time.Millisecond).String(),
+			summary.jobsPerSecond,
+			summary.speedup,
+			summary.efficiency*100,
 		))
 	}
 
@@ -202,4 +226,14 @@ func writeReport(reportTime time.Time, reportContent string) (string, error) {
 	}
 
 	return reportPath, nil
+}
+
+func buildTerminalFileLink(reportPath string) string {
+	absoluteReportPath, absolutePathError := filepath.Abs(reportPath)
+	if absolutePathError != nil {
+		return reportPath
+	}
+
+	reportURL := (&url.URL{Scheme: "file", Path: absoluteReportPath}).String()
+	return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", reportURL, absoluteReportPath)
 }
