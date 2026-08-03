@@ -65,7 +65,7 @@ func main() {
 	consoleReportContent := buildConsoleReport(reportTime, summaries)
 	fmt.Print(consoleReportContent)
 
-	reportContent := buildMarkdownReport(reportTime, summaries)
+	reportContent := buildHTMLReport(reportTime, summaries)
 
 	reportPath, writeError := writeReport(reportTime, reportContent)
 	if writeError != nil {
@@ -184,30 +184,6 @@ func buildConsoleReport(reportTime time.Time, summaries []benchmarkSummary) stri
 	return builder.String()
 }
 
-func buildMarkdownReport(reportTime time.Time, summaries []benchmarkSummary) string {
-	var builder strings.Builder
-
-	builder.WriteString("# Scheduler Benchmark Report\n\n")
-	builder.WriteString(fmt.Sprintf("Generated at %s UTC.\n\n", reportTime.Format("2006-01-02 15:04:05")))
-	builder.WriteString("This benchmark measures the round-robin scheduler end-to-end within one benchmark iteration: enqueue jobs, emit scheduled jobs, and drain the scheduler output channel.\n\n")
-	builder.WriteString("| Scenario | Jobs/iteration | ns/op | allocs/op | bytes/op | ops/sec |\n")
-	builder.WriteString("| --- | ---: | ---: | ---: | ---: | ---: |\n")
-
-	for _, summary := range summaries {
-		builder.WriteString(fmt.Sprintf(
-			"| %s | %d | %d | %d | %d | %.2f |\n",
-			summary.name,
-			summary.jobCount,
-			summary.nsPerOp,
-			summary.allocsPerOp,
-			summary.bytesPerOp,
-			summary.throughputOps,
-		))
-	}
-
-	return builder.String()
-}
-
 func writeReport(reportTime time.Time, reportContent string) (string, error) {
 	reportDirectory := filepath.Join("loadtest", "reports")
 	if mkdirError := os.MkdirAll(reportDirectory, 0o755); mkdirError != nil {
@@ -216,7 +192,7 @@ func writeReport(reportTime time.Time, reportContent string) (string, error) {
 
 	reportPath := filepath.Join(
 		reportDirectory,
-		fmt.Sprintf("scheduler-benchmark-%s.md", reportTime.Format("20060102-150405")),
+		fmt.Sprintf("scheduler-benchmark-%s.html", reportTime.Format("20060102-150405")),
 	)
 	if writeError := os.WriteFile(reportPath, []byte(reportContent), 0o644); writeError != nil {
 		return "", writeError

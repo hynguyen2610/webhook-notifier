@@ -1,6 +1,6 @@
 # Scheduler Benchmark
 
-This tool runs a simple benchmark against the round-robin scheduler and records the results both on screen and in a timestamped report file.
+This tool runs a simple benchmark against the round-robin scheduler and records the results both on screen and in a timestamped HTML report file.
 
 ## Run
 
@@ -39,13 +39,14 @@ The tool currently benchmarks these workloads:
 
 The tool does two things on each run:
 
-1. prints a Markdown report to standard output
-2. writes the same report to `loadtest/reports/`
+1. prints an aligned text table to standard output
+2. writes a self-contained HTML report with a styled table and charts to `loadtest/reports/`
 
 Report files use this naming pattern:
 
 ```text
 loadtest/reports/scheduler-benchmark-YYYYMMDD-HHMMSS.md
+loadtest/reports/scheduler-benchmark-YYYYMMDD-HHMMSS.html
 ```
 
 The `loadtest/reports/` directory is ignored by git.
