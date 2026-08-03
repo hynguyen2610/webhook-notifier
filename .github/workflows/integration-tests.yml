@@ -1,0 +1,23 @@
+name: Integration Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Go Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run notifier integration tests
+        run: go test ./internal/notifier -run '^TestNotifierIntegration' -count=1
