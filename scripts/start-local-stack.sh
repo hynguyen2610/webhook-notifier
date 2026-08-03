@@ -50,6 +50,28 @@ log() {
   printf '[local-stack] %s\n' "$1"
 }
 
+kill_kubectl_port_forward_if_needed() {
+  local address="$1"
+  local host="${address%%:*}"
+  local port="${address##*:}"
+  local process_ids
+
+  process_ids="$(lsof -tiTCP:"${port}" -sTCP:LISTEN || true)"
+  if [[ -z "${process_ids}" ]]; then
+    return 0
+  fi
+
+  for process_id in ${process_ids}; do
+    local command_line
+    command_line="$(ps -p "${process_id}" -o command= || true)"
+    if [[ "${command_line}" == kubectl\ port-forward* ]]; then
+      log "stopping existing kubectl port-forward on ${host}:${port}: ${command_line}"
+      kill "${process_id}" >/dev/null 2>&1 || true
+      wait "${process_id}" 2>/dev/null || true
+    fi
+  done
+}
+
 health_status_label() {
   local service_name="$1"
   local health_url="$2"
@@ -135,6 +157,8 @@ cleanup_service_ports() {
 
 start_port_forwards() {
   log "ensuring PostgreSQL and Kafka port-forwards"
+  kill_kubectl_port_forward_if_needed "${POSTGRES_LOCAL_ADDRESS}"
+  kill_kubectl_port_forward_if_needed "${KAFKA_LOCAL_ADDRESS}"
   (
     cd "${ROOT_DIR}"
     KEEP_RUNNING=true "${PORT_FORWARD_SCRIPT}" >"${LOG_DIR}/port-forwards.log" 2>&1
