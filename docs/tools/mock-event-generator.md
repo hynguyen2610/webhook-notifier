@@ -102,12 +102,26 @@ Request
 }
 ```
 
+Validation notes:
+
+- `customerId` is required
+- `count` defaults to `1` when omitted or set to `0`
+- negative `count` values are rejected
+
 Response
 
 ```json
 {
   "generated": 100
 }
+```
+
+Example:
+
+```bash
+curl -X POST http://localhost:28081/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"customerId":"customer-a","eventType":"subscriber.created","count":100}'
 ```
 
 ---
@@ -127,6 +141,20 @@ Example
   "customers": 50,
   "eventsPerCustomer": 1000
 }
+```
+
+Validation notes:
+
+- `customers` defaults to the configured default customer count when omitted or set to `0`
+- `eventsPerCustomer` defaults to `100` when omitted or set to `0`
+- negative values are rejected
+
+Example:
+
+```bash
+curl -X POST http://localhost:28081/generate/bulk \
+  -H 'Content-Type: application/json' \
+  -d '{"customers":5,"eventsPerCustomer":20}'
 ```
 
 ---
@@ -154,6 +182,12 @@ Customer C
 
 Used for fairness testing.
 
+Example:
+
+```bash
+curl -X POST http://localhost:28081/scenario/whale
+```
+
 ---
 
 ## Mixed Scenario
@@ -165,6 +199,16 @@ POST
 ```
 
 Produces multiple customers with randomized event rates.
+
+When `GENERATOR_RANDOM_SEED` is set, the generator produces the same event IDs,
+subscriber IDs, and timestamps for the same request sequence, which makes
+benchmark runs repeatable.
+
+Example:
+
+```bash
+curl -X POST http://localhost:28081/scenario/mixed
+```
 
 ---
 

@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"webhook-notifier/internal/config"
@@ -24,6 +27,10 @@ type Application struct {
 	httpClient   *http.Client
 	randomSource *rand.Rand
 	publisher    kafka.Publisher
+
+	generationStateMutex sync.Mutex
+	generatedEventCount  int64
+	baseOccurredAt       time.Time
 }
 
 type GenerateRequest struct {
@@ -43,10 +50,11 @@ type PublishResponse struct {
 
 func NewApplication(applicationConfig config.MockGeneratorConfig, logger *slog.Logger) *Application {
 	application := &Application{
-		config:       applicationConfig,
-		logger:       logger,
-		httpClient:   &http.Client{Timeout: 15 * time.Second},
-		randomSource: rand.New(rand.NewSource(applicationConfig.RandomSeed)),
+		config:         applicationConfig,
+		logger:         logger,
+		httpClient:     &http.Client{Timeout: 15 * time.Second},
+		randomSource:   rand.New(rand.NewSource(applicationConfig.RandomSeed)),
+		baseOccurredAt: time.Unix(0, applicationConfig.RandomSeed).UTC(),
 	}
 
 	if len(applicationConfig.KafkaBrokers) > 0 {
@@ -100,8 +108,12 @@ func (application *Application) Run(requestContext context.Context) error {
 
 func (application *Application) handleGenerate(responseWriter http.ResponseWriter, request *http.Request) {
 	var generateRequest GenerateRequest
-	if decodeError := json.NewDecoder(request.Body).Decode(&generateRequest); decodeError != nil {
+	if decodeError := decodeJSONRequest(request, &generateRequest); decodeError != nil {
 		httpx.WriteError(responseWriter, http.StatusBadRequest, decodeError.Error())
+		return
+	}
+	if validationError := validateGenerateRequest(generateRequest); validationError != nil {
+		httpx.WriteError(responseWriter, http.StatusBadRequest, validationError.Error())
 		return
 	}
 
@@ -127,8 +139,12 @@ func (application *Application) handleGenerate(responseWriter http.ResponseWrite
 
 func (application *Application) handleGenerateBulk(responseWriter http.ResponseWriter, request *http.Request) {
 	var bulkRequest BulkGenerateRequest
-	if decodeError := json.NewDecoder(request.Body).Decode(&bulkRequest); decodeError != nil {
+	if decodeError := decodeJSONRequest(request, &bulkRequest); decodeError != nil {
 		httpx.WriteError(responseWriter, http.StatusBadRequest, decodeError.Error())
+		return
+	}
+	if validationError := validateBulkGenerateRequest(bulkRequest); validationError != nil {
+		httpx.WriteError(responseWriter, http.StatusBadRequest, validationError.Error())
 		return
 	}
 
@@ -202,12 +218,20 @@ func (application *Application) handleHealth(responseWriter http.ResponseWriter,
 }
 
 func (application *Application) newEvent(customerID string, eventType string, eventIndex int) events.SubscriberEvent {
+	application.generationStateMutex.Lock()
+	subscriberID := fmt.Sprintf("subscriber-%06d", application.randomSource.Intn(999999))
+	eventSequence := application.generatedEventCount
+	occurredAt := application.baseOccurredAt.Add(time.Duration(eventSequence) * time.Millisecond)
+	eventID := fmt.Sprintf("seed-%d-%06d-%06d", application.config.RandomSeed, eventSequence, eventIndex)
+	application.generatedEventCount++
+	application.generationStateMutex.Unlock()
+
 	return events.SubscriberEvent{
-		EventID:      fmt.Sprintf("%d-%06d", time.Now().UnixNano(), eventIndex),
+		EventID:      eventID,
 		CustomerID:   customerID,
-		SubscriberID: fmt.Sprintf("subscriber-%06d", application.randomSource.Intn(999999)),
+		SubscriberID: subscriberID,
 		EventType:    eventType,
-		OccurredAt:   time.Now().UTC(),
+		OccurredAt:   occurredAt,
 	}
 }
 
@@ -235,6 +259,47 @@ func (application *Application) publishEvents(requestContext context.Context, ev
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("notifier returned status %d", response.StatusCode)
+	}
+
+	return nil
+}
+
+func decodeJSONRequest(request *http.Request, destination any) error {
+	decoder := json.NewDecoder(request.Body)
+	decoder.DisallowUnknownFields()
+
+	if decodeError := decoder.Decode(destination); decodeError != nil {
+		return decodeError
+	}
+
+	var trailingPayload json.RawMessage
+	if decodeError := decoder.Decode(&trailingPayload); decodeError != nil {
+		if errors.Is(decodeError, io.EOF) {
+			return nil
+		}
+		return errors.New("request body must contain a single JSON object")
+	}
+
+	return errors.New("request body must contain a single JSON object")
+}
+
+func validateGenerateRequest(generateRequest GenerateRequest) error {
+	if strings.TrimSpace(generateRequest.CustomerID) == "" {
+		return errors.New("customerId is required")
+	}
+	if generateRequest.Count < 0 {
+		return errors.New("count must be zero or greater")
+	}
+
+	return nil
+}
+
+func validateBulkGenerateRequest(bulkRequest BulkGenerateRequest) error {
+	if bulkRequest.Customers < 0 {
+		return errors.New("customers must be zero or greater")
+	}
+	if bulkRequest.EventsPerCustomer < 0 {
+		return errors.New("eventsPerCustomer must be zero or greater")
 	}
 
 	return nil

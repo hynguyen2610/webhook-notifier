@@ -95,10 +95,10 @@ This checklist translates the current requirement and planning documents into an
 - [x] Add `POST /generate/bulk`
 - [x] Add `POST /scenario/whale`
 - [x] Add `POST /scenario/mixed`
-- [ ] Generate deterministic test data when seed is provided
-- [ ] Validate generator requests and return useful errors
-- [ ] Add configuration for broker, topic, customer count, and seed
-- [ ] Document example requests for each scenario
+- [x] Generate deterministic test data when seed is provided
+- [x] Validate generator requests and return useful errors
+- [x] Add configuration for broker, topic, customer count, and seed
+- [x] Document example requests for each scenario
 
 ## Step 4: Mock Webhook Receiver
 
