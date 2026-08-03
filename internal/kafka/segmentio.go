@@ -129,6 +129,9 @@ func (consumer *EventConsumer) Start(requestContext context.Context, handler fun
 		}
 
 		if commitError := consumer.reader.CommitMessages(requestContext, message); commitError != nil {
+			if errors.Is(commitError, context.Canceled) || requestContext.Err() != nil {
+				return nil
+			}
 			return fmt.Errorf("commit kafka message: %w", commitError)
 		}
 	}
