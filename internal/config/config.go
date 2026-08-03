@@ -15,12 +15,9 @@ type NotifierConfig struct {
 	RequestTimeout            time.Duration
 	MaxRetryAttempts          int
 	InitialRetryDelay         time.Duration
+	QueueClaimBatchSize       int
+	QueuePollInterval         time.Duration
 	LogLevel                  string
-	KafkaBrokers              []string
-	KafkaHostOverrides        map[string]string
-	KafkaTopic                string
-	KafkaConsumerGroup        string
-	KafkaDLQTopic             string
 	PostgresConnection        string
 	RegistrationResolveQuery  string
 	RegistrationSnapshotQuery string
@@ -37,9 +34,6 @@ type MockGeneratorConfig struct {
 	DefaultCustomerCount int
 	RandomSeed           int64
 	LogLevel             string
-	KafkaBrokers         []string
-	KafkaHostOverrides   map[string]string
-	KafkaTopic           string
 }
 
 func LoadNotifierConfig() (NotifierConfig, error) {
@@ -63,6 +57,16 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 		return NotifierConfig{}, retryDelayError
 	}
 
+	queueClaimBatchSize, queueBatchError := parseIntEnvironment("NOTIFIER_QUEUE_CLAIM_BATCH_SIZE", 32)
+	if queueBatchError != nil {
+		return NotifierConfig{}, queueBatchError
+	}
+
+	queuePollInterval, queuePollError := parseDurationEnvironment("NOTIFIER_QUEUE_POLL_INTERVAL", 250*time.Millisecond)
+	if queuePollError != nil {
+		return NotifierConfig{}, queuePollError
+	}
+
 	postgresConnection := readEnvironment("NOTIFIER_POSTGRES_DSN", "")
 	if strings.TrimSpace(postgresConnection) == "" {
 		return NotifierConfig{}, errors.New("NOTIFIER_POSTGRES_DSN is required")
@@ -74,12 +78,9 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 		RequestTimeout:            requestTimeout,
 		MaxRetryAttempts:          maxRetryAttempts,
 		InitialRetryDelay:         initialRetryDelay,
+		QueueClaimBatchSize:       queueClaimBatchSize,
+		QueuePollInterval:         queuePollInterval,
 		LogLevel:                  readEnvironment("NOTIFIER_LOG_LEVEL", "INFO"),
-		KafkaBrokers:              splitCommaSeparatedValues(readEnvironment("NOTIFIER_KAFKA_BROKERS", "")),
-		KafkaHostOverrides:        parseKeyValueMapEnvironment(readEnvironment("NOTIFIER_KAFKA_HOST_OVERRIDES", "")),
-		KafkaTopic:                readEnvironment("NOTIFIER_KAFKA_TOPIC", "subscriber-events"),
-		KafkaConsumerGroup:        readEnvironment("NOTIFIER_KAFKA_CONSUMER_GROUP", "webhook-notifier"),
-		KafkaDLQTopic:             readEnvironment("NOTIFIER_KAFKA_DLQ_TOPIC", "subscriber-events-dlq"),
 		PostgresConnection:        postgresConnection,
 		RegistrationResolveQuery:  readEnvironment("NOTIFIER_REGISTRATION_RESOLVE_QUERY", "SELECT webhook_url FROM webhook_registrations WHERE customer_id = $1 AND is_active = TRUE ORDER BY webhook_url"),
 		RegistrationSnapshotQuery: readEnvironment("NOTIFIER_REGISTRATION_SNAPSHOT_QUERY", "SELECT customer_id, webhook_url FROM webhook_registrations WHERE is_active = TRUE ORDER BY customer_id, webhook_url"),
@@ -110,9 +111,6 @@ func LoadMockGeneratorConfig() (MockGeneratorConfig, error) {
 		DefaultCustomerCount: defaultCustomerCount,
 		RandomSeed:           randomSeed,
 		LogLevel:             readEnvironment("GENERATOR_LOG_LEVEL", "INFO"),
-		KafkaBrokers:         splitCommaSeparatedValues(readEnvironment("GENERATOR_KAFKA_BROKERS", "")),
-		KafkaHostOverrides:   parseKeyValueMapEnvironment(readEnvironment("GENERATOR_KAFKA_HOST_OVERRIDES", "")),
-		KafkaTopic:           readEnvironment("GENERATOR_KAFKA_TOPIC", "subscriber-events"),
 	}, nil
 }
 
@@ -153,54 +151,4 @@ func parseDurationEnvironment(environmentVariable string, defaultValue time.Dura
 	}
 
 	return parsedValue, nil
-}
-
-func splitCommaSeparatedValues(rawValue string) []string {
-	if strings.TrimSpace(rawValue) == "" {
-		return nil
-	}
-
-	rawParts := strings.Split(rawValue, ",")
-	parts := make([]string, 0, len(rawParts))
-	for _, rawPart := range rawParts {
-		trimmedPart := strings.TrimSpace(rawPart)
-		if trimmedPart != "" {
-			parts = append(parts, trimmedPart)
-		}
-	}
-
-	return parts
-}
-
-func parseKeyValueMapEnvironment(rawValue string) map[string]string {
-	if strings.TrimSpace(rawValue) == "" {
-		return nil
-	}
-
-	keyValueMap := make(map[string]string)
-	for _, rawEntry := range strings.Split(rawValue, ",") {
-		trimmedEntry := strings.TrimSpace(rawEntry)
-		if trimmedEntry == "" {
-			continue
-		}
-
-		key, value, found := strings.Cut(trimmedEntry, "=")
-		if !found {
-			continue
-		}
-
-		trimmedKey := strings.TrimSpace(key)
-		trimmedValue := strings.TrimSpace(value)
-		if trimmedKey == "" || trimmedValue == "" {
-			continue
-		}
-
-		keyValueMap[trimmedKey] = trimmedValue
-	}
-
-	if len(keyValueMap) == 0 {
-		return nil
-	}
-
-	return keyValueMap
 }

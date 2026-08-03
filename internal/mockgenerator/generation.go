@@ -30,10 +30,6 @@ func (application *Application) newEvent(customerID string, eventType string, ev
 }
 
 func (application *Application) publishEvents(requestContext context.Context, eventsBatch []events.SubscriberEvent) error {
-	if application.publisher != nil {
-		return application.publisher.Publish(eventsBatch)
-	}
-
 	requestBody, marshalError := json.Marshal(eventsBatch)
 	if marshalError != nil {
 		return marshalError

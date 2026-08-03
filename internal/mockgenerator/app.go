@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"webhook-notifier/internal/config"
-	"webhook-notifier/internal/kafka"
 )
 
 type Application struct {
@@ -19,7 +18,6 @@ type Application struct {
 	httpServer   *http.Server
 	httpClient   *http.Client
 	randomSource *rand.Rand
-	publisher    kafka.Publisher
 
 	generationStateMutex sync.Mutex
 	generatedEventCount  int64
@@ -48,14 +46,6 @@ func NewApplication(applicationConfig config.MockGeneratorConfig, logger *slog.L
 		httpClient:     &http.Client{Timeout: 15 * time.Second},
 		randomSource:   rand.New(rand.NewSource(applicationConfig.RandomSeed)),
 		baseOccurredAt: time.Unix(0, applicationConfig.RandomSeed).UTC(),
-	}
-
-	if len(applicationConfig.KafkaBrokers) > 0 {
-		application.publisher = kafka.NewEventPublisher(
-			applicationConfig.KafkaBrokers,
-			applicationConfig.KafkaHostOverrides,
-			applicationConfig.KafkaTopic,
-		)
 	}
 
 	mux := http.NewServeMux()

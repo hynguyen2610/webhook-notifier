@@ -40,10 +40,11 @@ func (application *Application) handleRegistrations(responseWriter http.Response
 }
 
 func (application *Application) handleDeadLetters(responseWriter http.ResponseWriter, _ *http.Request) {
-	application.deadLetterMutex.Lock()
-	defer application.deadLetterMutex.Unlock()
-
-	deadLetterSnapshot := append([]events.DeadLetterMessage(nil), application.deadLetters...)
+	deadLetterSnapshot, snapshotError := application.workQueue.SnapshotDeadLetters(context.Background())
+	if snapshotError != nil {
+		httpx.WriteError(responseWriter, http.StatusInternalServerError, snapshotError.Error())
+		return
+	}
 	httpx.WriteJSON(responseWriter, http.StatusOK, deadLetterSnapshot)
 }
 
@@ -54,13 +55,13 @@ func (application *Application) handleSingleEvent(responseWriter http.ResponseWr
 		return
 	}
 
-	createdJobs, ingestError := application.ingestEvents([]events.SubscriberEvent{event})
-	if ingestError != nil {
+	createdJobs, enqueueError := application.enqueueEvents([]events.SubscriberEvent{event})
+	if enqueueError != nil {
 		statusCode := http.StatusBadRequest
-		if errors.Is(ingestError, registration.ErrCustomerNotRegistered) {
+		if errors.Is(enqueueError, registration.ErrCustomerNotRegistered) {
 			statusCode = http.StatusNotFound
 		}
-		httpx.WriteError(responseWriter, statusCode, ingestError.Error())
+		httpx.WriteError(responseWriter, statusCode, enqueueError.Error())
 		return
 	}
 
@@ -77,13 +78,13 @@ func (application *Application) handleBatchEvents(responseWriter http.ResponseWr
 		return
 	}
 
-	createdJobs, ingestError := application.ingestEvents(eventsBatch)
-	if ingestError != nil {
+	createdJobs, enqueueError := application.enqueueEvents(eventsBatch)
+	if enqueueError != nil {
 		statusCode := http.StatusBadRequest
-		if errors.Is(ingestError, registration.ErrCustomerNotRegistered) {
+		if errors.Is(enqueueError, registration.ErrCustomerNotRegistered) {
 			statusCode = http.StatusNotFound
 		}
-		httpx.WriteError(responseWriter, statusCode, ingestError.Error())
+		httpx.WriteError(responseWriter, statusCode, enqueueError.Error())
 		return
 	}
 
@@ -93,7 +94,7 @@ func (application *Application) handleBatchEvents(responseWriter http.ResponseWr
 	})
 }
 
-func (application *Application) ingestEvents(subscriberEvents []events.SubscriberEvent) (int, error) {
+func (application *Application) enqueueEvents(subscriberEvents []events.SubscriberEvent) (int, error) {
 	createdJobs := 0
 	for _, subscriberEvent := range subscriberEvents {
 		if validationError := validateEvent(subscriberEvent); validationError != nil {
@@ -116,15 +117,16 @@ func (application *Application) ingestEvents(subscriberEvents []events.Subscribe
 		)
 		application.receivedEvents.Add(1)
 		application.notifierMetrics.ReceivedEventsCounter.Inc()
-		for _, webhookURL := range webhookURLs {
-			application.scheduler.Enqueue(events.DeliveryJob{
-				Event:      subscriberEvent,
-				WebhookURL: webhookURL,
-				EnqueuedAt: time.Now(),
-				TraceID:    subscriberEvent.EventID,
-			})
-			createdJobs++
+		enqueuedCount, enqueueError := application.workQueue.EnqueueDeliveries(
+			context.Background(),
+			subscriberEvent,
+			webhookURLs,
+			time.Now().UTC(),
+		)
+		if enqueueError != nil {
+			return createdJobs, enqueueError
 		}
+		createdJobs += enqueuedCount
 	}
 
 	return createdJobs, nil

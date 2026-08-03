@@ -23,19 +23,20 @@ func (application *Application) runWorker(requestContext context.Context, worker
 
 			if result.StatusCode >= 200 && result.StatusCode < 300 {
 				application.deliveredEvents.Add(1)
+				if markDeliveredError := application.workQueue.MarkDelivered(requestContext, job.QueueItemID, result.CompletedAt); markDeliveredError != nil {
+					application.logger.Error("mark queue item delivered", "queueItemID", job.QueueItemID, "error", markDeliveredError)
+				}
 				continue
 			}
 
 			application.failedDeliveries.Add(1)
 			if result.ShouldRetry && application.retryPolicy.CanRetry(job.Attempt) {
 				application.retriedDeliveries.Add(1)
-				nextJob := job
-				nextJob.Attempt++
-				nextJob.LastError = result.FailureReason
-				delay := application.retryPolicy.NextDelay(nextJob.Attempt - 1)
-				time.AfterFunc(delay, func() {
-					application.scheduler.Enqueue(nextJob)
-				})
+				delay := application.retryPolicy.NextDelay(job.Attempt)
+				nextAvailableAt := time.Now().UTC().Add(delay)
+				if retryError := application.workQueue.MarkRetryPending(requestContext, job.QueueItemID, result.FailureReason, nextAvailableAt, time.Now().UTC()); retryError != nil {
+					application.logger.Error("mark queue item retry pending", "queueItemID", job.QueueItemID, "error", retryError)
+				}
 				continue
 			}
 
@@ -55,10 +56,7 @@ func (application *Application) recordDeadLetter(job events.DeliveryJob, failure
 	}
 	application.deadLetters = append(application.deadLetters, deadLetterMessage)
 	application.deadLetterMutex.Unlock()
-
-	if application.deadLetterWriter != nil {
-		if publishError := application.deadLetterWriter.Publish(deadLetterMessage); publishError != nil {
-			application.logger.Error("publish dead letter message", "error", publishError, "eventID", job.Event.EventID)
-		}
+	if queueError := application.workQueue.MarkDeadLetter(context.Background(), job.QueueItemID, failureReason, deadLetterMessage.ExhaustedAt); queueError != nil {
+		application.logger.Error("mark queue item dead lettered", "queueItemID", job.QueueItemID, "error", queueError)
 	}
 }

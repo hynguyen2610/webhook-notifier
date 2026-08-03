@@ -11,12 +11,13 @@ type SubscriberEvent struct {
 }
 
 type DeliveryJob struct {
-	Event      SubscriberEvent `json:"event"`
-	WebhookURL string          `json:"webhookUrl"`
-	Attempt    int             `json:"attempt"`
-	EnqueuedAt time.Time       `json:"enqueuedAt"`
-	LastError  string          `json:"lastError,omitempty"`
-	TraceID    string          `json:"traceId,omitempty"`
+	QueueItemID int64           `json:"queueItemId,omitempty"`
+	Event       SubscriberEvent `json:"event"`
+	WebhookURL  string          `json:"webhookUrl"`
+	Attempt     int             `json:"attempt"`
+	EnqueuedAt  time.Time       `json:"enqueuedAt"`
+	LastError   string          `json:"lastError,omitempty"`
+	TraceID     string          `json:"traceId,omitempty"`
 }
 
 type DeliveryResult struct {

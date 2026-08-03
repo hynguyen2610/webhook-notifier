@@ -3,9 +3,9 @@ package notifier
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,22 +13,21 @@ import (
 	"webhook-notifier/internal/config"
 	"webhook-notifier/internal/delivery"
 	"webhook-notifier/internal/events"
-	"webhook-notifier/internal/kafka"
 	"webhook-notifier/internal/metrics"
 	"webhook-notifier/internal/registration"
 	"webhook-notifier/internal/retry"
 	"webhook-notifier/internal/scheduler"
+	"webhook-notifier/internal/workqueue"
 )
 
 type Application struct {
 	config            config.NotifierConfig
 	logger            *slog.Logger
 	registry          registration.Registry
+	workQueue         workqueue.Repository
 	scheduler         *scheduler.RoundRobinScheduler
 	deliveryClient    *delivery.HTTPClient
 	retryPolicy       retry.ExponentialBackoffPolicy
-	kafkaConsumer     kafka.Consumer
-	deadLetterWriter  kafka.DeadLetterWriter
 	notifierMetrics   *metrics.NotifierMetrics
 	httpServer        *http.Server
 	deadLetterMutex   sync.Mutex
@@ -59,10 +58,19 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 		return nil, pingError
 	}
 
+	queueRepository, queueError := workqueue.NewPostgresRepository(applicationConfig.PostgresConnection)
+	if queueError != nil {
+		return nil, queueError
+	}
+	if schemaError := queueRepository.EnsureSchema(context.Background()); schemaError != nil {
+		return nil, schemaError
+	}
+
 	application := &Application{
 		config:          applicationConfig,
 		logger:          logger,
 		registry:        registryStore,
+		workQueue:       queueRepository,
 		scheduler:       scheduler.NewRoundRobinScheduler(applicationConfig.WorkerCount * 4),
 		deliveryClient:  delivery.NewHTTPClient(applicationConfig.RequestTimeout),
 		notifierMetrics: metrics.NewNotifierMetrics(),
@@ -70,20 +78,6 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 			InitialDelay:    applicationConfig.InitialRetryDelay,
 			MaxRetryAttempt: applicationConfig.MaxRetryAttempts,
 		},
-	}
-
-	if len(applicationConfig.KafkaBrokers) > 0 {
-		application.kafkaConsumer = kafka.NewEventConsumer(
-			applicationConfig.KafkaBrokers,
-			applicationConfig.KafkaHostOverrides,
-			applicationConfig.KafkaTopic,
-			applicationConfig.KafkaConsumerGroup,
-		)
-		application.deadLetterWriter = kafka.NewDeadLetterPublisher(
-			applicationConfig.KafkaBrokers,
-			applicationConfig.KafkaHostOverrides,
-			applicationConfig.KafkaDLQTopic,
-		)
 	}
 
 	mux := http.NewServeMux()
@@ -117,7 +111,7 @@ func (application *Application) Run(requestContext context.Context) error {
 	}
 
 	serverErrors := make(chan error, 1)
-	kafkaErrors := make(chan error, 1)
+	queueErrors := make(chan error, 1)
 	go func() {
 		application.logger.Info("starting notifier", "address", application.config.HTTPAddress, "workerCount", application.config.WorkerCount)
 		listenError := application.httpServer.ListenAndServe()
@@ -128,22 +122,9 @@ func (application *Application) Run(requestContext context.Context) error {
 		serverErrors <- nil
 	}()
 
-	if application.kafkaConsumer != nil {
-		go func() {
-			application.logger.Info(
-				"starting kafka consumer",
-				"brokers", strings.Join(application.config.KafkaBrokers, ","),
-				"topic", application.config.KafkaTopic,
-				"consumerGroup", application.config.KafkaConsumerGroup,
-			)
-
-			consumeError := application.kafkaConsumer.Start(requestContext, func(subscriberEvent events.SubscriberEvent) error {
-				_, ingestError := application.ingestEvents([]events.SubscriberEvent{subscriberEvent})
-				return ingestError
-			})
-			kafkaErrors <- consumeError
-		}()
-	}
+	go func() {
+		queueErrors <- application.runQueuePoller(requestContext)
+	}()
 
 	select {
 	case <-requestContext.Done():
@@ -152,10 +133,10 @@ func (application *Application) Run(requestContext context.Context) error {
 			application.scheduler.Close()
 			return serverError
 		}
-	case kafkaError := <-kafkaErrors:
-		if kafkaError != nil {
+	case queueError := <-queueErrors:
+		if queueError != nil {
 			application.scheduler.Close()
-			return kafkaError
+			return queueError
 		}
 	}
 
@@ -165,11 +146,61 @@ func (application *Application) Run(requestContext context.Context) error {
 	defer cancelShutdown()
 
 	shutdownError := application.httpServer.Shutdown(shutdownContext)
-	closeError := application.registry.Close()
+	registryCloseError := application.registry.Close()
+	queueCloseError := application.workQueue.Close()
 	workerGroup.Wait()
 	if shutdownError != nil {
 		return shutdownError
 	}
+	if registryCloseError != nil {
+		return registryCloseError
+	}
+	if queueCloseError != nil {
+		return queueCloseError
+	}
 
-	return closeError
+	return nil
+}
+
+func (application *Application) runQueuePoller(requestContext context.Context) error {
+	claimOwner := fmt.Sprintf("notifier-%d", time.Now().UnixNano())
+	application.logger.Info(
+		"starting postgres work queue poller",
+		"claimBatchSize", application.config.QueueClaimBatchSize,
+		"pollInterval", application.config.QueuePollInterval.String(),
+		"claimOwner", claimOwner,
+	)
+
+	pollTicker := time.NewTicker(application.config.QueuePollInterval)
+	defer pollTicker.Stop()
+
+	for {
+		if queueError := application.claimAndSchedule(requestContext, claimOwner); queueError != nil {
+			return queueError
+		}
+
+		select {
+		case <-requestContext.Done():
+			return nil
+		case <-pollTicker.C:
+		}
+	}
+}
+
+func (application *Application) claimAndSchedule(requestContext context.Context, claimOwner string) error {
+	queuedDeliveries, claimError := application.workQueue.ClaimAvailableDeliveries(
+		requestContext,
+		claimOwner,
+		application.config.QueueClaimBatchSize,
+		time.Now().UTC(),
+	)
+	if claimError != nil {
+		return claimError
+	}
+
+	for _, queuedDelivery := range queuedDeliveries {
+		application.scheduler.Enqueue(queuedDelivery.Job)
+	}
+
+	return nil
 }
