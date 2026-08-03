@@ -3,19 +3,12 @@ package notifier
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
-	"webhook-notifier/internal/config"
-	"webhook-notifier/internal/delivery"
 	"webhook-notifier/internal/events"
-	"webhook-notifier/internal/retry"
-	"webhook-notifier/internal/scheduler"
 )
 
 func TestNotifierIntegrationDeliversRegisteredEventToWebhook(t *testing.T) {
@@ -37,34 +30,17 @@ func TestNotifierIntegrationDeliversRegisteredEventToWebhook(t *testing.T) {
 	}))
 	defer webhookServer.Close()
 
-	application := &Application{
-		config: config.NotifierConfig{
-			WorkerCount:      1,
-			RequestTimeout:   2 * time.Second,
-			MaxRetryAttempts: 3,
-		},
-		logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
-		registry:       testRegistry{webhookURLsByCustomerID: map[string][]string{"customer-a": {webhookServer.URL}}},
-		scheduler:      scheduler.NewRoundRobinScheduler(4),
-		deliveryClient: delivery.NewHTTPClient(2 * time.Second),
-		retryPolicy: retry.ExponentialBackoffPolicy{
-			InitialDelay:    10 * time.Millisecond,
-			MaxRetryAttempt: 3,
-		},
-		notifierMetrics: newTestNotifierMetrics(),
-	}
+	application := newTestApplication(
+		map[string][]string{"customer-a": {webhookServer.URL}},
+		1,
+		2*time.Second,
+		10*time.Millisecond,
+		3,
+	)
 
 	requestContext, cancelRequest := context.WithCancel(context.Background())
 	defer cancelRequest()
-
-	scheduledJobs := application.scheduler.Start(requestContext)
-
-	var workerGroup sync.WaitGroup
-	workerGroup.Add(1)
-	go func() {
-		defer workerGroup.Done()
-		application.runWorker(requestContext, 1, scheduledJobs)
-	}()
+	workers := startTestWorkers(requestContext, application, 1)
 
 	testEvent := events.SubscriberEvent{
 		EventID:      "event-001",
@@ -74,9 +50,9 @@ func TestNotifierIntegrationDeliversRegisteredEventToWebhook(t *testing.T) {
 		OccurredAt:   time.Date(2026, time.August, 3, 9, 0, 0, 0, time.UTC),
 	}
 
-	createdJobs, ingestError := application.ingestEvents([]events.SubscriberEvent{testEvent})
-	if ingestError != nil {
-		t.Fatalf("ingest events: %v", ingestError)
+	createdJobs, enqueueError := application.enqueueEvents([]events.SubscriberEvent{testEvent})
+	if enqueueError != nil {
+		t.Fatalf("enqueue events: %v", enqueueError)
 	}
 	if createdJobs != 1 {
 		t.Fatalf("expected 1 created job, got %d", createdJobs)
@@ -103,5 +79,5 @@ func TestNotifierIntegrationDeliversRegisteredEventToWebhook(t *testing.T) {
 	}
 
 	cancelRequest()
-	workerGroup.Wait()
+	workers.Wait()
 }

@@ -48,9 +48,9 @@ func TestNotifierIntegrationPreservesProgressDuringWhaleScenario(t *testing.T) {
 		whaleEvents = append(whaleEvents, newTestEvent("customer-c", "event-c-"+strconv.Itoa(eventIndex)))
 	}
 
-	createdJobs, ingestError := application.ingestEvents(whaleEvents)
-	if ingestError != nil {
-		t.Fatalf("ingest whale events: %v", ingestError)
+	createdJobs, enqueueError := application.enqueueEvents(whaleEvents)
+	if enqueueError != nil {
+		t.Fatalf("enqueue whale events: %v", enqueueError)
 	}
 	if createdJobs != len(whaleEvents) {
 		t.Fatalf("expected %d created jobs, got %d", len(whaleEvents), createdJobs)

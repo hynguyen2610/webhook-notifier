@@ -47,9 +47,9 @@ func TestNotifierIntegrationRetriesThenSucceeds(t *testing.T) {
 	defer cancelRequest()
 	workers := startTestWorkers(requestContext, application, 1)
 
-	createdJobs, ingestError := application.ingestEvents([]events.SubscriberEvent{newTestEvent("customer-a", "event-retry-success")})
-	if ingestError != nil {
-		t.Fatalf("ingest events: %v", ingestError)
+	createdJobs, enqueueError := application.enqueueEvents([]events.SubscriberEvent{newTestEvent("customer-a", "event-retry-success")})
+	if enqueueError != nil {
+		t.Fatalf("enqueue events: %v", enqueueError)
 	}
 	if createdJobs != 1 {
 		t.Fatalf("expected 1 created job, got %d", createdJobs)
@@ -93,9 +93,9 @@ func TestNotifierIntegrationRoutesExhaustedFailuresToDeadLetter(t *testing.T) {
 	defer cancelRequest()
 	workers := startTestWorkers(requestContext, application, 1)
 
-	createdJobs, ingestError := application.ingestEvents([]events.SubscriberEvent{newTestEvent("customer-a", "event-dead-letter")})
-	if ingestError != nil {
-		t.Fatalf("ingest events: %v", ingestError)
+	createdJobs, enqueueError := application.enqueueEvents([]events.SubscriberEvent{newTestEvent("customer-a", "event-dead-letter")})
+	if enqueueError != nil {
+		t.Fatalf("enqueue events: %v", enqueueError)
 	}
 	if createdJobs != 1 {
 		t.Fatalf("expected 1 created job, got %d", createdJobs)
@@ -146,9 +146,9 @@ func TestNotifierIntegrationDeadLettersSlowReceiverTimeout(t *testing.T) {
 	defer cancelRequest()
 	workers := startTestWorkers(requestContext, application, 1)
 
-	createdJobs, ingestError := application.ingestEvents([]events.SubscriberEvent{newTestEvent("customer-a", "event-timeout")})
-	if ingestError != nil {
-		t.Fatalf("ingest events: %v", ingestError)
+	createdJobs, enqueueError := application.enqueueEvents([]events.SubscriberEvent{newTestEvent("customer-a", "event-timeout")})
+	if enqueueError != nil {
+		t.Fatalf("enqueue events: %v", enqueueError)
 	}
 	if createdJobs != 1 {
 		t.Fatalf("expected 1 created job, got %d", createdJobs)
