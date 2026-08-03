@@ -1,6 +1,6 @@
 # Scheduler Benchmark
 
-This tool runs scheduler benchmarks plus a worker-scaling load test and records the results both on screen and in a timestamped HTML report file.
+This tool runs scheduler benchmarks plus explicit worker fairness scenarios and records the results both on screen and in a timestamped HTML report file.
 
 ## Run
 
@@ -20,12 +20,13 @@ The benchmark records these metrics for each scenario:
 - `ops/sec`: derived throughput based on `ns/op`
 - `jobs/sec`: derived job throughput based on `ops/sec * jobs per iteration`
 
-The worker-scaling load test records these metrics for each worker count:
+The worker fairness scenarios record these metrics for each worker count:
 
-- `duration`: wall-clock time to deliver the full fixed workload
-- `jobs/sec`: delivered jobs divided by wall-clock time
-- `speedup`: relative improvement versus the `1` worker run
-- `efficiency`: `speedup / worker count`
+- total `duration`: wall-clock time to finish the full scenario
+- total `jobs/sec`: total delivered jobs divided by wall-clock time
+- per-customer first completion duration: how quickly each customer starts making progress
+- per-customer finish duration: how long each customer takes to fully finish
+- early completion share: each customer's share of the first `20` completed jobs
 
 One benchmark iteration includes:
 
@@ -43,19 +44,23 @@ The tool currently benchmarks these workloads:
 - `whale-scenario`: one whale customer plus smaller customers mixed into the same workload
 - `huge-mixed-customer-load`: a much larger mixed workload intended to make growth in `ns/op`, allocations, and bytes easier to compare across runs
 
-The worker-scaling load test keeps a fixed four-customer workload and receiver latency while varying worker count across `1`, `2`, `4`, and `8`.
+The worker fairness scenarios are:
+
+- `two-whales-100-two-normals-2`: `100`, `100`, `2`, and `2` queued messages across four customers
+- `two-whales-200000-two-normals-2`: `200000`, `200000`, `2`, and `2` queued messages across four customers
+
+Each fairness scenario runs with worker counts `1`, `4`, and `8`.
 
 ## Output
 
 The tool does two things on each run:
 
 1. prints an aligned text table to standard output
-2. writes a self-contained HTML report with scheduler and scaling comparison charts to `loadtest/reports/`
+2. writes a self-contained HTML report with fairness comparison tables and charts to `loadtest/reports/`
 
 Report files use this naming pattern:
 
 ```text
-loadtest/reports/scheduler-benchmark-YYYYMMDD-HHMMSS.md
 loadtest/reports/scheduler-benchmark-YYYYMMDD-HHMMSS.html
 ```
 

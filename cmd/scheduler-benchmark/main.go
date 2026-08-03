@@ -64,16 +64,16 @@ func main() {
 		schedulerSummaries = append(schedulerSummaries, runScenarioBenchmark(scenario))
 	}
 
-	workerScalingSummaries, workerScalingError := runWorkerScalingLoadTest()
-	if workerScalingError != nil {
-		fmt.Fprintf(os.Stderr, "run worker scaling load test: %v\n", workerScalingError)
+	fairnessScenarioSummaries, fairnessScenarioError := runFairnessScenarios()
+	if fairnessScenarioError != nil {
+		fmt.Fprintf(os.Stderr, "run fairness scenarios: %v\n", fairnessScenarioError)
 		os.Exit(1)
 	}
 
-	consoleReportContent := buildConsoleReport(reportTime, schedulerSummaries, workerScalingSummaries)
+	consoleReportContent := buildConsoleReport(reportTime, schedulerSummaries, fairnessScenarioSummaries)
 	fmt.Print(consoleReportContent)
 
-	reportContent := buildHTMLReport(reportTime, schedulerSummaries, workerScalingSummaries)
+	reportContent := buildHTMLReport(reportTime, schedulerSummaries, fairnessScenarioSummaries)
 
 	reportPath, writeError := writeReport(reportTime, reportContent)
 	if writeError != nil {
@@ -169,7 +169,7 @@ func runScenarioBenchmark(scenario benchmarkScenario) benchmarkSummary {
 	}
 }
 
-func buildConsoleReport(reportTime time.Time, schedulerSummaries []benchmarkSummary, workerScalingSummaries []workerScalingSummary) string {
+func buildConsoleReport(reportTime time.Time, schedulerSummaries []benchmarkSummary, fairnessScenarioSummaries []fairnessScenarioSummary) string {
 	var builder strings.Builder
 
 	builder.WriteString("Scheduler Benchmark Report\n\n")
@@ -191,22 +191,7 @@ func buildConsoleReport(reportTime time.Time, schedulerSummaries []benchmarkSumm
 		))
 	}
 
-	builder.WriteString("\nWorker Scaling Load Test\n\n")
-	builder.WriteString("This load test keeps the same queued workload and receiver latency while increasing worker count to show throughput scaling.\n\n")
-	builder.WriteString(fmt.Sprintf("%-12s %12s %14s %14s %10s %12s\n", "Workers", "Jobs", "Duration", "jobs/sec", "Speedup", "Efficiency"))
-	builder.WriteString(fmt.Sprintf("%-12s %12s %14s %14s %10s %12s\n", strings.Repeat("-", 12), strings.Repeat("-", 12), strings.Repeat("-", 14), strings.Repeat("-", 14), strings.Repeat("-", 10), strings.Repeat("-", 12)))
-
-	for _, summary := range workerScalingSummaries {
-		builder.WriteString(fmt.Sprintf(
-			"%-12d %12d %14s %14.2f %10.2fx %11.1f%%\n",
-			summary.workerCount,
-			summary.jobCount,
-			summary.totalDuration.Round(time.Millisecond).String(),
-			summary.jobsPerSecond,
-			summary.speedup,
-			summary.efficiency*100,
-		))
-	}
+	builder.WriteString(buildConsoleFairnessReport(fairnessScenarioSummaries))
 
 	return builder.String()
 }
