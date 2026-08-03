@@ -100,5 +100,5 @@ specific ADR if needed.
 - [implementation-checklist.md](../plan/implementation-checklist.md)
 - [internal/notifier/app.go](../../internal/notifier/app.go)
 - [internal/registration/postgres.go](../../internal/registration/postgres.go)
-- [internal/kafka/segmentio.go](../../internal/kafka/segmentio.go)
+- [internal/workqueue/postgres.go](../../internal/workqueue/postgres.go)
 - [scripts/start-local-stack.sh](../../scripts/start-local-stack.sh)

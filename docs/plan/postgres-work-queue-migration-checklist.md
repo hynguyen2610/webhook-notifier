@@ -110,8 +110,8 @@ Current implementation uses `FOR UPDATE SKIP LOCKED` in `ClaimAvailableDeliverie
 
 ## Step 10: Update CI
 
-- [ ] Remove Kafka provisioning from integration workflow
-- [ ] Replace Kafka-backed integration test steps with PostgreSQL queue integration tests
+- [x] Remove Kafka provisioning from integration workflow
+- [x] Replace Kafka-backed integration test steps with PostgreSQL queue integration tests
 - [ ] Review whether the dedicated race workflow still covers the right packages
 - [ ] Simplify CI runtime where Kafka was previously required
 
