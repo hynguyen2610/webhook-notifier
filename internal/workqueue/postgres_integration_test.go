@@ -3,14 +3,13 @@ package workqueue
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"webhook-notifier/internal/events"
+	"webhook-notifier/internal/testsupport"
 )
 
 func TestPostgresRepositoryIntegrationRetriesThenSucceeds(t *testing.T) {
@@ -230,10 +229,8 @@ func TestPostgresRepositoryIntegrationClaimsDoNotOverlapAcrossWorkers(t *testing
 func newIntegrationRepository(t *testing.T) (*PostgresRepository, func()) {
 	t.Helper()
 
-	postgresDSN := os.Getenv("TEST_POSTGRES_DSN")
-	if strings.TrimSpace(postgresDSN) == "" {
-		t.Skip("TEST_POSTGRES_DSN is not set")
-	}
+	postgresDSN, cleanupPostgres := testsupport.PostgresDSN(t)
+	t.Cleanup(cleanupPostgres)
 
 	repository, repositoryError := NewPostgresRepository(postgresDSN)
 	if repositoryError != nil {

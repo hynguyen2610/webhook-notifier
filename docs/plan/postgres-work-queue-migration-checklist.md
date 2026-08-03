@@ -98,6 +98,8 @@ Current implementation uses `FOR UPDATE SKIP LOCKED` in `ClaimAvailableDeliverie
   - [x] retry exhaustion to dead letter
   - [x] multi-customer fairness
   - [x] concurrent claim safety
+- [x] Add PostgreSQL-backed notifier integration coverage for queue write, poll, and webhook delivery
+- [x] Add HTTP ingest full-flow integration coverage for notifier request, PostgreSQL queueing, polling, and webhook delivery
 - [x] Keep existing notifier fast integration coverage where still applicable
 - [ ] Add race coverage for the PostgreSQL polling and claim path
 

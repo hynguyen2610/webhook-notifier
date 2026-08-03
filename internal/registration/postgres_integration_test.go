@@ -4,21 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"webhook-notifier/internal/testsupport"
 )
 
 func TestPostgresRegistryIntegrationReadsRealRegistrations(t *testing.T) {
 	// Input: a real PostgreSQL table containing active and inactive webhook registrations for multiple customers.
 	// Outcome: registry ping, resolve, and snapshot calls return only active registrations from the live database.
-	postgresDSN := os.Getenv("TEST_POSTGRES_DSN")
-	if strings.TrimSpace(postgresDSN) == "" {
-		t.Skip("TEST_POSTGRES_DSN is not set")
-	}
+	postgresDSN, cleanupPostgres := testsupport.PostgresDSN(t)
+	defer cleanupPostgres()
 
 	databaseConnection, openError := sql.Open("pgx", postgresDSN)
 	if openError != nil {
