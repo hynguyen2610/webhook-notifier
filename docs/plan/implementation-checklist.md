@@ -206,11 +206,11 @@ This checklist translates the current requirement and planning documents into an
 - [x] Add unit tests for scheduler behaviour
 - [x] Add unit tests for retry classification and backoff
 - [x] Add unit tests for PostgreSQL registration lookup
-- [ ] Add integration tests for end-to-end happy path
-- [ ] Add integration tests for retry then success
-- [ ] Add integration tests for retry exhaustion to DLQ
-- [ ] Add integration tests for whale customer fairness scenario
-- [ ] Add failure tests for slow or unavailable receiver
+- [x] Add integration tests for end-to-end happy path
+- [x] Add integration tests for retry then success
+- [x] Add integration tests for retry exhaustion to DLQ
+- [x] Add integration tests for whale customer fairness scenario
+- [x] Add failure tests for slow or unavailable receiver
 
 ## Step 13: Benchmark And Validation
 
