@@ -18,6 +18,7 @@ type PostgresRegistry struct {
 func NewPostgresRegistry(connectionString string, resolveQuery string, snapshotQuery string) (*PostgresRegistry, error) {
 	databaseConnection, openError := sql.Open("pgx", connectionString)
 	if openError != nil {
+
 		return nil, fmt.Errorf("open postgres connection: %w", openError)
 	}
 
