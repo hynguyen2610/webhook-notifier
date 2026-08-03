@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -20,6 +21,7 @@ func TestKafkaIntegrationPublishesAndConsumesSubscriberEvent(t *testing.T) {
 	kafkaBrokers := integrationKafkaBrokers(t)
 	topicName := fmt.Sprintf("subscriber-events-it-%d", time.Now().UnixNano())
 	consumerGroup := fmt.Sprintf("webhook-notifier-it-%d", time.Now().UnixNano())
+	createKafkaTopic(t, kafkaBrokers, topicName, 1)
 
 	eventPublisher := NewEventPublisher(kafkaBrokers, nil, topicName)
 	defer eventPublisher.Close()
@@ -34,7 +36,6 @@ func TestKafkaIntegrationPublishesAndConsumesSubscriberEvent(t *testing.T) {
 	go func() {
 		consumerErrors <- eventConsumer.Start(requestContext, func(subscriberEvent events.SubscriberEvent) error {
 			receivedEvents <- subscriberEvent
-			cancelRequest()
 			return nil
 		})
 	}()
@@ -67,6 +68,7 @@ func TestKafkaIntegrationPublishesAndConsumesSubscriberEvent(t *testing.T) {
 		t.Fatal("timed out waiting for consumed event")
 	}
 
+	cancelRequest()
 	if consumerError := <-consumerErrors; consumerError != nil {
 		t.Fatalf("consumer returned error: %v", consumerError)
 	}
@@ -77,6 +79,7 @@ func TestKafkaIntegrationPublishesDeadLetterMessage(t *testing.T) {
 	// Outcome: a live Kafka reader receives the DLQ payload with the same event ID and failure reason.
 	kafkaBrokers := integrationKafkaBrokers(t)
 	topicName := fmt.Sprintf("subscriber-events-dlq-it-%d", time.Now().UnixNano())
+	createKafkaTopic(t, kafkaBrokers, topicName, 1)
 
 	deadLetterPublisher := NewDeadLetterPublisher(kafkaBrokers, nil, topicName)
 	defer deadLetterPublisher.Close()
@@ -154,4 +157,46 @@ func integrationKafkaBrokers(t *testing.T) []string {
 	}
 
 	return kafkaBrokers
+}
+
+func createKafkaTopic(t *testing.T, kafkaBrokers []string, topicName string, partitionCount int) {
+	t.Helper()
+
+	brokerHost, brokerPort, splitError := net.SplitHostPort(kafkaBrokers[0])
+	if splitError != nil {
+		t.Fatalf("split kafka broker host and port: %v", splitError)
+	}
+
+	requestContext, cancelRequest := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancelRequest()
+
+	brokerConnection, dialError := segmentio.DialContext(requestContext, "tcp", net.JoinHostPort(brokerHost, brokerPort))
+	if dialError != nil {
+		t.Fatalf("dial kafka broker: %v", dialError)
+	}
+	defer brokerConnection.Close()
+
+	controller, controllerError := brokerConnection.Controller()
+	if controllerError != nil {
+		t.Fatalf("lookup kafka controller: %v", controllerError)
+	}
+
+	controllerConnection, controllerDialError := segmentio.DialContext(
+		requestContext,
+		"tcp",
+		net.JoinHostPort(controller.Host, fmt.Sprintf("%d", controller.Port)),
+	)
+	if controllerDialError != nil {
+		t.Fatalf("dial kafka controller: %v", controllerDialError)
+	}
+	defer controllerConnection.Close()
+
+	createTopicsError := controllerConnection.CreateTopics(segmentio.TopicConfig{
+		Topic:             topicName,
+		NumPartitions:     partitionCount,
+		ReplicationFactor: 1,
+	})
+	if createTopicsError != nil && !strings.Contains(createTopicsError.Error(), "already exists") {
+		t.Fatalf("create kafka topic %s: %v", topicName, createTopicsError)
+	}
 }
