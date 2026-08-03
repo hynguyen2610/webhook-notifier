@@ -105,6 +105,15 @@ func (application *Application) ingestEvents(subscriberEvents []events.Subscribe
 			return createdJobs, resolveError
 		}
 
+		application.logger.Info(
+			"received subscriber event",
+			"eventID", subscriberEvent.EventID,
+			"customerID", subscriberEvent.CustomerID,
+			"subscriberID", subscriberEvent.SubscriberID,
+			"eventType", subscriberEvent.EventType,
+			"occurredAt", subscriberEvent.OccurredAt,
+			"webhookEndpointCount", len(webhookURLs),
+		)
 		application.receivedEvents.Add(1)
 		application.notifierMetrics.ReceivedEventsCounter.Inc()
 		for _, webhookURL := range webhookURLs {

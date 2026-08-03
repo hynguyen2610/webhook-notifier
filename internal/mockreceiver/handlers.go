@@ -12,6 +12,7 @@ import (
 func (application *Application) handleWebhook(responseWriter http.ResponseWriter, request *http.Request) {
 	customerID := request.PathValue("customerId")
 	if strings.TrimSpace(customerID) == "" {
+		application.logger.Warn("webhook request missing customer ID")
 		httpx.WriteError(responseWriter, http.StatusBadRequest, "customerId is required")
 		return
 	}
@@ -34,6 +35,24 @@ func (application *Application) handleWebhook(responseWriter http.ResponseWriter
 		application.failedCount.Add(1)
 	}
 	application.recordCustomerStatistic(customerID, subscriberEvent, decodeError, statusCode)
+	logValues := []any{
+		"customerID", customerID,
+		"mode", scenario.Mode,
+		"statusCode", statusCode,
+		"latencyMilliseconds", latencyMilliseconds,
+		"decodeError", decodeError,
+	}
+	if subscriberEvent != nil {
+		logValues = append(
+			logValues,
+			"eventID", subscriberEvent.EventID,
+			"payloadCustomerID", subscriberEvent.CustomerID,
+			"subscriberID", subscriberEvent.SubscriberID,
+			"eventType", subscriberEvent.EventType,
+			"occurredAt", subscriberEvent.OccurredAt,
+		)
+	}
+	application.logger.Info("processed webhook request", logValues...)
 
 	httpx.WriteJSON(responseWriter, statusCode, map[string]any{
 		"customerId": customerID,
@@ -45,12 +64,14 @@ func (application *Application) handleWebhook(responseWriter http.ResponseWriter
 func (application *Application) handleScenarioConfig(responseWriter http.ResponseWriter, request *http.Request) {
 	customerID := request.PathValue("customerId")
 	if strings.TrimSpace(customerID) == "" {
+		application.logger.Warn("scenario config missing customer ID")
 		httpx.WriteError(responseWriter, http.StatusBadRequest, "customerId is required")
 		return
 	}
 
 	var scenario Scenario
 	if decodeError := json.NewDecoder(request.Body).Decode(&scenario); decodeError != nil {
+		application.logger.Warn("scenario config decode failed", "customerID", customerID, "error", decodeError)
 		httpx.WriteError(responseWriter, http.StatusBadRequest, decodeError.Error())
 		return
 	}
@@ -62,6 +83,7 @@ func (application *Application) handleScenarioConfig(responseWriter http.Respons
 	application.scenarioMutex.Lock()
 	application.scenarios[customerID] = scenario
 	application.scenarioMutex.Unlock()
+	application.logger.Info("updated receiver scenario", "customerID", customerID, "mode", scenario.Mode, "delayMilliseconds", scenario.DelayMilliseconds, "failureProbability", scenario.FailureProbability)
 
 	httpx.WriteJSON(responseWriter, http.StatusOK, map[string]any{
 		"customerId": customerID,
@@ -103,6 +125,7 @@ func (application *Application) handleResetStats(responseWriter http.ResponseWri
 	application.statisticsMutex.Lock()
 	application.customerStats = make(map[string]*CustomerStatistics)
 	application.statisticsMutex.Unlock()
+	application.logger.Info("receiver statistics reset")
 	httpx.WriteJSON(responseWriter, http.StatusOK, map[string]string{
 		"status": "reset",
 	})
