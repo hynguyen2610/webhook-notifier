@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Webhook Notifier - Customer Pain Points & Design Rationale</title>
+
+<style>
+body{
+    font-family:Arial,Helvetica,sans-serif;
+    margin:40px auto;
+    max-width:1200px;
+    line-height:1.6;
+    background:#f6f8fb;
+    color:#222;
+}
+
+h1,h2,h3{
+    color:#0f3d63;
+}
+
+.card{
+    background:white;
+    border-radius:10px;
+    padding:24px;
+    margin-bottom:24px;
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th{
+    background:#0f3d63;
+    color:white;
+    padding:12px;
+}
+
+td{
+    border:1px solid #ddd;
+    padding:10px;
+    vertical-align:top;
+}
+
+.diagram{
+    background:#f0f4f8;
+    border-left:5px solid #0f3d63;
+    padding:18px;
+    font-family:Consolas,monospace;
+    white-space:pre;
+}
+
+.note{
+    background:#fff8dd;
+    border-left:5px solid #f4b400;
+    padding:16px;
+    margin-top:20px;
+}
+
+.success{
+    background:#eef9ef;
+    border-left:5px solid #2e7d32;
+    padding:16px;
+    margin-top:20px;
+}
+
+.footer{
+    text-align:center;
+    color:#777;
+    margin-top:50px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Webhook Notifier</h1>
+<h2>Customer Pain Points & Design Rationale</h2>
+
+<div class="card">
+<h2>Executive Summary</h2>
+
+<p>
+The purpose of the Webhook Notifier is not simply to deliver HTTP requests.
+Its primary business objective is to provide reliable and fair webhook delivery
+for all customers, even when a small number of customers ("whales") generate
+extremely high event volumes.
+</p>
+
+<p>
+The design focuses on:
+</p>
+
+<ul>
+<li>Reliable delivery (At-Least-Once)</li>
+<li>Fair scheduling across customers</li>
+<li>Horizontal scalability</li>
+<li>Fault tolerance</li>
+<li>Operational simplicity</li>
+</ul>
+
+</div>
+
+<div class="card">
+
+<h2>Problem Overview</h2>
+
+<div class="diagram">
+               Subscriber Events
+
+                       │
+
+                       ▼
+
+          Webhook Delivery Queue
+
+                       │
+
+             Fair Round Robin Scheduler
+
+                       │
+
+                  Worker Pool
+
+                       │
+
+             Customer Webhook Endpoints
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Primary Customer Pain Points</h2>
+
+<table>
+
+<tr>
+<th>#</th>
+<th>Pain Point</th>
+<th>Business Impact</th>
+<th>Example</th>
+</tr>
+
+<tr>
+<td>1</td>
+<td><b>Whale customers monopolize processing</b></td>
+<td>Small customers experience very high delivery latency.</td>
+<td>Customer A generates 200K events/sec while Customer B generates only 5 events/sec.</td>
+</tr>
+
+<tr>
+<td>2</td>
+<td><b>Temporary endpoint failures</b></td>
+<td>Webhook events may be permanently lost without retries.</td>
+<td>Receiver returns HTTP 500 or network timeout.</td>
+</tr>
+
+<tr>
+<td>3</td>
+<td><b>Traffic spikes</b></td>
+<td>Large marketing campaigns generate sudden bursts of events.</td>
+<td>Hundreds of thousands of subscriber updates.</td>
+</tr>
+
+<tr>
+<td>4</td>
+<td><b>Unreliable Internet</b></td>
+<td>Transient network failures should not cause data loss.</td>
+<td>DNS failure, connection refused, TLS timeout.</td>
+</tr>
+
+<tr>
+<td>5</td>
+<td><b>Growing customer base</b></td>
+<td>System must continue scaling without redesign.</td>
+<td>100 customers today, 20,000 customers tomorrow.</td>
+</tr>
+
+<tr>
+<td>6</td>
+<td><b>Duplicate deliveries</b></td>
+<td>Retries naturally produce duplicate webhook deliveries.</td>
+<td>Timeout followed by successful retry.</td>
+</tr>
+
+<tr>
+<td>7</td>
+<td><b>Slow webhook receivers</b></td>
+<td>One customer's failures should not block other customers.</td>
+<td>Customer B continuously returns HTTP 500.</td>
+</tr>
+
+<tr>
+<td>8</td>
+<td><b>Operational visibility</b></td>
+<td>Support engineers need to troubleshoot delivery failures.</td>
+<td>Retry count, last error, claim owner, timestamps.</td>
+</tr>
+
+</table>
+
+</div>
+
+<div class="card">
+
+<h2>Requirements → Solution Mapping</h2>
+
+<table>
+
+<tr>
+<th>Customer Problem</th>
+<th>Requirement</th>
+<th>Design Decision</th>
+</tr>
+
+<tr>
+<td>Whale starvation</td>
+<td>Fair scheduling</td>
+<td>Round-Robin scheduler per active customer</td>
+</tr>
+
+<tr>
+<td>Temporary failures</td>
+<td>Retry strategy</td>
+<td>Exponential backoff</td>
+</tr>
+
+<tr>
+<td>Event loss</td>
+<td>Reliable delivery</td>
+<td>At-Least-Once semantics</td>
+</tr>
+
+<tr>
+<td>Duplicate deliveries</td>
+<td>Idempotency</td>
+<td>Event ID included in every delivery</td>
+</tr>
+
+<tr>
+<td>Traffic growth</td>
+<td>Horizontal scalability</td>
+<td>Stateless notifier instances</td>
+</tr>
+
+<tr>
+<td>Concurrent workers</td>
+<td>Safe work distribution</td>
+<td>PostgreSQL FOR UPDATE SKIP LOCKED</td>
+</tr>
+
+<tr>
+<td>Slow customers</td>
+<td>Isolation</td>
+<td>Worker pool + retry queue</td>
+</tr>
+
+<tr>
+<td>Operational debugging</td>
+<td>Visibility</td>
+<td>Persistent delivery status and metadata</td>
+</tr>
+
+</table>
+
+</div>
+
+<div class="card">
+
+<h2>How Fair Scheduling Solves Whale Starvation</h2>
+
+<h3>Without Fair Scheduling (FIFO)</h3>
+
+<div class="diagram">
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+                 B
+
+                  C
+</div>
+
+<p>
+Customer B and Customer C wait until Customer A's backlog is exhausted.
+Small customers experience unacceptable latency.
+</p>
+
+<hr>
+
+<h3>With Round Robin</h3>
+
+<div class="diagram">
+A
+B
+C
+A
+B
+C
+A
+A
+A
+...
+</div>
+
+<p>
+Every active customer receives an opportunity to make progress.
+Whale customers continue processing without starving smaller customers.
+</p>
+
+</div>
+
+<div class="card">
+
+<h2>Why At-Least-Once Delivery?</h2>
+
+<table>
+
+<tr>
+<th>Delivery Guarantee</th>
+<th>Pros</th>
+<th>Cons</th>
+</tr>
+
+<tr>
+<td>At Most Once</td>
+<td>No duplicates</td>
+<td>Events may be permanently lost</td>
+</tr>
+
+<tr>
+<td><b>At Least Once (Chosen)</b></td>
+<td>Reliable delivery</td>
+<td>Duplicates possible (receiver deduplicates)</td>
+</tr>
+
+<tr>
+<td>Exactly Once</td>
+<td>Ideal semantics</td>
+<td>High complexity and unnecessary for assignment scope</td>
+</tr>
+
+</table>
+
+</div>
+
+<div class="card">
+
+<h2>Scalability Strategy</h2>
+
+<div class="diagram">
+          PostgreSQL Queue
+
+        ┌────────┬────────┐
+        ▼        ▼        ▼
+     Notifier  Notifier  Notifier
+
+        │        │        │
+
+      Worker   Worker   Worker
+       Pool     Pool     Pool
+</div>
+
+<p>
+Notifier instances are stateless and independently claim work using
+<b>FOR UPDATE SKIP LOCKED</b>. This enables horizontal scaling while
+avoiding duplicate processing.
+</p>
+
+<div class="note">
+<strong>Known Limitation</strong><br><br>
+
+Fairness is guaranteed within each notifier instance. Global fairness
+across multiple notifier instances could be further improved by introducing
+customer-aware claiming or a centralized scheduler. This additional
+complexity was considered outside the scope of the assignment.
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Business Outcomes</h2>
+
+<table>
+
+<tr>
+<th>Outcome</th>
+<th>Value</th>
+</tr>
+
+<tr>
+<td>Lower latency for small customers</td>
+<td>Improved customer experience</td>
+</tr>
+
+<tr>
+<td>Reliable webhook delivery</td>
+<td>Reduced event loss</td>
+</tr>
+
+<tr>
+<td>Automatic retry</td>
+<td>Higher delivery success rate</td>
+</tr>
+
+<tr>
+<td>Horizontal scalability</td>
+<td>Supports future traffic growth</td>
+</tr>
+
+<tr>
+<td>Operational visibility</td>
+<td>Simpler debugging and monitoring</td>
+</tr>
+
+</table>
+
+<div class="success">
+<strong>Design Goal</strong>
+
+<p>
+Deliver webhook events reliably and fairly so that no customer is starved,
+temporary failures do not cause event loss, and the system can scale
+horizontally as customer traffic grows.
+</p>
+
+</div>
+
+</div>
+
+<div class="footer">
+Webhook Notifier Design Document • Customer Pain Points & Design Rationale
+</div>
+
+</body>
+</html>
