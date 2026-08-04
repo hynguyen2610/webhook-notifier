@@ -43,7 +43,7 @@ func NewApplication(applicationConfig config.MockGeneratorConfig, logger *slog.L
 	application := &Application{
 		config:         applicationConfig,
 		logger:         logger,
-		httpClient:     &http.Client{Timeout: 15 * time.Second},
+		httpClient:     &http.Client{Timeout: applicationConfig.HTTPRequestTimeout},
 		randomSource:   rand.New(rand.NewSource(applicationConfig.RandomSeed)),
 		baseOccurredAt: time.Unix(0, applicationConfig.RandomSeed).UTC(),
 	}
@@ -83,7 +83,7 @@ func (application *Application) Run(requestContext context.Context) error {
 		}
 	}
 
-	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), application.config.ShutdownTimeout)
 	defer cancelShutdown()
 
 	return application.httpServer.Shutdown(shutdownContext)

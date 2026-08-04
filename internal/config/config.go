@@ -9,6 +9,24 @@ import (
 	"time"
 )
 
+const (
+	defaultNotifierWorkerCount               = 4
+	defaultNotifierRequestTimeout            = 5 * time.Second
+	defaultNotifierMaxRetryAttempts          = 3
+	defaultNotifierInitialRetryDelay         = time.Second
+	defaultNotifierQueueClaimBatchSize       = 32
+	defaultNotifierQueuePollInterval         = 250 * time.Millisecond
+	defaultNotifierSchedulerBufferMultiplier = 4
+	defaultNotifierMetricsReportInterval     = 2 * time.Second
+	defaultNotifierShutdownTimeout           = 5 * time.Second
+
+	defaultReceiverShutdownTimeout = 5 * time.Second
+
+	defaultGeneratorCustomerCount   = 5
+	defaultGeneratorHTTPTimeout     = 15 * time.Second
+	defaultGeneratorShutdownTimeout = 5 * time.Second
+)
+
 type NotifierConfig struct {
 	HTTPAddress               string
 	WorkerCount               int
@@ -17,6 +35,9 @@ type NotifierConfig struct {
 	InitialRetryDelay         time.Duration
 	QueueClaimBatchSize       int
 	QueuePollInterval         time.Duration
+	SchedulerBufferMultiplier int
+	MetricsReportInterval     time.Duration
+	ShutdownTimeout           time.Duration
 	LogLevel                  string
 	PostgresConnection        string
 	RegistrationResolveQuery  string
@@ -24,8 +45,9 @@ type NotifierConfig struct {
 }
 
 type MockReceiverConfig struct {
-	HTTPAddress string
-	LogLevel    string
+	HTTPAddress     string
+	ShutdownTimeout time.Duration
+	LogLevel        string
 }
 
 type MockGeneratorConfig struct {
@@ -33,38 +55,55 @@ type MockGeneratorConfig struct {
 	NotifierBaseURL      string
 	DefaultCustomerCount int
 	RandomSeed           int64
+	HTTPRequestTimeout   time.Duration
+	ShutdownTimeout      time.Duration
 	LogLevel             string
 }
 
 func LoadNotifierConfig() (NotifierConfig, error) {
-	workerCount, workerCountError := parseIntEnvironment("NOTIFIER_WORKER_COUNT", 4)
+	workerCount, workerCountError := parseIntEnvironment("NOTIFIER_WORKER_COUNT", defaultNotifierWorkerCount)
 	if workerCountError != nil {
 		return NotifierConfig{}, workerCountError
 	}
 
-	maxRetryAttempts, retryError := parseIntEnvironment("NOTIFIER_MAX_RETRY_ATTEMPTS", 3)
+	maxRetryAttempts, retryError := parseIntEnvironment("NOTIFIER_MAX_RETRY_ATTEMPTS", defaultNotifierMaxRetryAttempts)
 	if retryError != nil {
 		return NotifierConfig{}, retryError
 	}
 
-	requestTimeout, requestTimeoutError := parseDurationEnvironment("NOTIFIER_REQUEST_TIMEOUT", 5*time.Second)
+	requestTimeout, requestTimeoutError := parseDurationEnvironment("NOTIFIER_REQUEST_TIMEOUT", defaultNotifierRequestTimeout)
 	if requestTimeoutError != nil {
 		return NotifierConfig{}, requestTimeoutError
 	}
 
-	initialRetryDelay, retryDelayError := parseDurationEnvironment("NOTIFIER_INITIAL_RETRY_DELAY", time.Second)
+	initialRetryDelay, retryDelayError := parseDurationEnvironment("NOTIFIER_INITIAL_RETRY_DELAY", defaultNotifierInitialRetryDelay)
 	if retryDelayError != nil {
 		return NotifierConfig{}, retryDelayError
 	}
 
-	queueClaimBatchSize, queueBatchError := parseIntEnvironment("NOTIFIER_QUEUE_CLAIM_BATCH_SIZE", 32)
+	queueClaimBatchSize, queueBatchError := parseIntEnvironment("NOTIFIER_QUEUE_CLAIM_BATCH_SIZE", defaultNotifierQueueClaimBatchSize)
 	if queueBatchError != nil {
 		return NotifierConfig{}, queueBatchError
 	}
 
-	queuePollInterval, queuePollError := parseDurationEnvironment("NOTIFIER_QUEUE_POLL_INTERVAL", 250*time.Millisecond)
+	queuePollInterval, queuePollError := parseDurationEnvironment("NOTIFIER_QUEUE_POLL_INTERVAL", defaultNotifierQueuePollInterval)
 	if queuePollError != nil {
 		return NotifierConfig{}, queuePollError
+	}
+
+	schedulerBufferMultiplier, schedulerBufferMultiplierError := parseIntEnvironment("NOTIFIER_SCHEDULER_BUFFER_MULTIPLIER", defaultNotifierSchedulerBufferMultiplier)
+	if schedulerBufferMultiplierError != nil {
+		return NotifierConfig{}, schedulerBufferMultiplierError
+	}
+
+	metricsReportInterval, metricsReportIntervalError := parseDurationEnvironment("NOTIFIER_METRICS_REPORT_INTERVAL", defaultNotifierMetricsReportInterval)
+	if metricsReportIntervalError != nil {
+		return NotifierConfig{}, metricsReportIntervalError
+	}
+
+	shutdownTimeout, shutdownTimeoutError := parseDurationEnvironment("NOTIFIER_SHUTDOWN_TIMEOUT", defaultNotifierShutdownTimeout)
+	if shutdownTimeoutError != nil {
+		return NotifierConfig{}, shutdownTimeoutError
 	}
 
 	postgresConnection := readEnvironment("NOTIFIER_POSTGRES_DSN", "")
@@ -80,6 +119,9 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 		InitialRetryDelay:         initialRetryDelay,
 		QueueClaimBatchSize:       queueClaimBatchSize,
 		QueuePollInterval:         queuePollInterval,
+		SchedulerBufferMultiplier: schedulerBufferMultiplier,
+		MetricsReportInterval:     metricsReportInterval,
+		ShutdownTimeout:           shutdownTimeout,
 		LogLevel:                  readEnvironment("NOTIFIER_LOG_LEVEL", "INFO"),
 		PostgresConnection:        postgresConnection,
 		RegistrationResolveQuery:  readEnvironment("NOTIFIER_REGISTRATION_RESOLVE_QUERY", "SELECT webhook_url FROM webhook_registrations WHERE customer_id = $1 AND is_active = TRUE ORDER BY webhook_url"),
@@ -88,14 +130,20 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 }
 
 func LoadMockReceiverConfig() (MockReceiverConfig, error) {
+	shutdownTimeout, shutdownTimeoutError := parseDurationEnvironment("RECEIVER_SHUTDOWN_TIMEOUT", defaultReceiverShutdownTimeout)
+	if shutdownTimeoutError != nil {
+		return MockReceiverConfig{}, shutdownTimeoutError
+	}
+
 	return MockReceiverConfig{
-		HTTPAddress: readEnvironment("RECEIVER_HTTP_ADDRESS", ":28082"),
-		LogLevel:    readEnvironment("RECEIVER_LOG_LEVEL", "INFO"),
+		HTTPAddress:     readEnvironment("RECEIVER_HTTP_ADDRESS", ":28082"),
+		ShutdownTimeout: shutdownTimeout,
+		LogLevel:        readEnvironment("RECEIVER_LOG_LEVEL", "INFO"),
 	}, nil
 }
 
 func LoadMockGeneratorConfig() (MockGeneratorConfig, error) {
-	defaultCustomerCount, customerCountError := parseIntEnvironment("GENERATOR_DEFAULT_CUSTOMER_COUNT", 5)
+	defaultCustomerCount, customerCountError := parseIntEnvironment("GENERATOR_DEFAULT_CUSTOMER_COUNT", defaultGeneratorCustomerCount)
 	if customerCountError != nil {
 		return MockGeneratorConfig{}, customerCountError
 	}
@@ -105,11 +153,23 @@ func LoadMockGeneratorConfig() (MockGeneratorConfig, error) {
 		return MockGeneratorConfig{}, randomSeedError
 	}
 
+	httpRequestTimeout, httpRequestTimeoutError := parseDurationEnvironment("GENERATOR_HTTP_REQUEST_TIMEOUT", defaultGeneratorHTTPTimeout)
+	if httpRequestTimeoutError != nil {
+		return MockGeneratorConfig{}, httpRequestTimeoutError
+	}
+
+	shutdownTimeout, shutdownTimeoutError := parseDurationEnvironment("GENERATOR_SHUTDOWN_TIMEOUT", defaultGeneratorShutdownTimeout)
+	if shutdownTimeoutError != nil {
+		return MockGeneratorConfig{}, shutdownTimeoutError
+	}
+
 	return MockGeneratorConfig{
 		HTTPAddress:          readEnvironment("GENERATOR_HTTP_ADDRESS", ":28081"),
 		NotifierBaseURL:      strings.TrimRight(readEnvironment("GENERATOR_NOTIFIER_BASE_URL", "http://localhost:28080"), "/"),
 		DefaultCustomerCount: defaultCustomerCount,
 		RandomSeed:           randomSeed,
+		HTTPRequestTimeout:   httpRequestTimeout,
+		ShutdownTimeout:      shutdownTimeout,
 		LogLevel:             readEnvironment("GENERATOR_LOG_LEVEL", "INFO"),
 	}, nil
 }

@@ -99,7 +99,7 @@ func (application *Application) Run(requestContext context.Context) error {
 		}
 	}
 
-	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), application.config.ShutdownTimeout)
 	defer cancelShutdown()
 
 	return application.httpServer.Shutdown(shutdownContext)

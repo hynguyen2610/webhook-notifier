@@ -32,7 +32,7 @@ func (application *Application) logDeliveryResult(workerID int, result events.De
 
 func (application *Application) startMetricsReporter(requestContext context.Context) {
 	go func() {
-		reportTicker := time.NewTicker(2 * time.Second)
+		reportTicker := time.NewTicker(application.config.MetricsReportInterval)
 		defer reportTicker.Stop()
 
 		for {

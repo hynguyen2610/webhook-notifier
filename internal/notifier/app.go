@@ -71,7 +71,7 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 		logger:          logger,
 		registry:        registryStore,
 		workQueue:       queueRepository,
-		scheduler:       scheduler.NewRoundRobinScheduler(applicationConfig.WorkerCount * 4),
+		scheduler:       scheduler.NewRoundRobinScheduler(applicationConfig.WorkerCount * applicationConfig.SchedulerBufferMultiplier),
 		deliveryClient:  delivery.NewHTTPClient(applicationConfig.RequestTimeout),
 		notifierMetrics: metrics.NewNotifierMetrics(),
 		retryPolicy: retry.ExponentialBackoffPolicy{
@@ -142,7 +142,7 @@ func (application *Application) Run(requestContext context.Context) error {
 
 	application.scheduler.Close()
 
-	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), application.config.ShutdownTimeout)
 	defer cancelShutdown()
 
 	shutdownError := application.httpServer.Shutdown(shutdownContext)
