@@ -24,7 +24,7 @@ What is implemented now:
 - retry with exponential backoff
 - mock webhook receiver for local testing
 - mock event generator for local testing
-- health, stats, registration snapshot, DLQ, and Prometheus metrics endpoints
+- health, stats, registration snapshot, DLQ, and metrics endpoints
 - PostgreSQL-backed integration coverage for queue and registration behavior
 
 What is still incomplete:
@@ -37,12 +37,6 @@ What is still incomplete:
 
 - Go `1.26.4` or compatible
 - PostgreSQL reachable from the machine running the apps
-
-Known Kubernetes services already present in your environment:
-
-- PostgreSQL service used by these scripts: `user-org-db-service.default.svc.cluster.local:5432`
-- Prometheus: `prometheus.monitoring.svc.cluster.local:9090`
-- Grafana: `grafana.monitoring.svc.cluster.local:3000`
 
 ## Registration Schema Assumption
 
@@ -165,48 +159,49 @@ Common:
 
 Recommended run order:
 
-1. start PostgreSQL and seed webhook registrations
-2. start mock webhook receiver
-3. start notifier
-4. start mock event generator
-5. generate test events
+1. start PostgreSQL
+2. seed webhook registrations
+3. start mock webhook receiver
+4. start notifier
+5. start mock event generator
+6. generate test events
 
-### Fastest Local Start
+### 1. Start PostgreSQL
 
-If you want one command that ensures PostgreSQL local access, bootstraps the database, and starts the receiver, notifier, and generator together, use:
-
-```bash
-scripts/start-local-stack.sh
-```
-
-This script keeps running until you stop it with `Ctrl+C`.
-
-It writes logs to:
-
-- `.tmp/local-stack/port-forwards.log`
-- `.tmp/local-stack/mock-receiver.log`
-- `.tmp/local-stack/notifier.log`
-- `.tmp/local-stack/mock-generator.log`
-
-### 1. Make PostgreSQL Reachable From Local Development
-
-If you want a helper that prepares PostgreSQL local access and keeps the port-forward running in the current terminal, use:
+Start the local PostgreSQL container:
 
 ```bash
-scripts/ensure-local-port-forwards.sh
+docker compose up -d postgres
 ```
 
-If you explicitly want the helper to exit and clean up the port-forward when it finishes, set:
+Default local PostgreSQL address:
+
+- `127.0.0.1:15432`
+
+### 2. Seed Webhook Registrations
+
+Create the registration table and seed a few local customers:
 
 ```bash
-KEEP_RUNNING=false scripts/ensure-local-port-forwards.sh
+psql 'postgres://postgres:password@127.0.0.1:15432/webhook_notifier?sslmode=disable' <<'SQL'
+CREATE TABLE IF NOT EXISTS webhook_registrations (
+  customer_id TEXT NOT NULL,
+  webhook_url TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+DELETE FROM webhook_registrations
+WHERE customer_id IN ('customer-a', 'customer-b', 'customer-c');
+
+INSERT INTO webhook_registrations (customer_id, webhook_url, is_active)
+VALUES
+  ('customer-a', 'http://localhost:28082/webhook/customer-a', TRUE),
+  ('customer-b', 'http://localhost:28082/webhook/customer-b', TRUE),
+  ('customer-c', 'http://localhost:28082/webhook/customer-c', TRUE);
+SQL
 ```
 
-Default forwarded address:
-
-- PostgreSQL: `127.0.0.1:15432`
-
-### 2. Start The Mock Receiver
+### 3. Start The Mock Receiver
 
 ```bash
 go run ./cmd/mock-webhook-receiver
@@ -218,9 +213,9 @@ Health check:
 curl -sS http://localhost:28082/health
 ```
 
-### 3. Start The Notifier
+### 4. Start The Notifier
 
-Example using the default local port-forwarded PostgreSQL address:
+Example using the default local PostgreSQL address:
 
 ```bash
 NOTIFIER_POSTGRES_DSN='postgres://postgres:password@127.0.0.1:15432/webhook_notifier?sslmode=disable' \
@@ -243,7 +238,7 @@ Available endpoints:
 - `POST /events`
 - `POST /events/batch`
 
-### 4. Start The Mock Event Generator
+### 5. Start The Mock Event Generator
 
 ```bash
 GENERATOR_NOTIFIER_BASE_URL='http://localhost:28080' \
@@ -256,9 +251,7 @@ Health check:
 curl -sS http://localhost:28081/health
 ```
 
-### 5. Generate Events
-
-Before generating events, keep the terminal running `scripts/ensure-local-port-forwards.sh` or `scripts/start-local-stack.sh` open. If that helper exits, the PostgreSQL forward stops and the notifier will lose database connectivity.
+### 6. Generate Events
 
 Single customer batch:
 

@@ -100,6 +100,11 @@ pre{
   </section>
 
   <section class="section">
+    <h2>Important Scope Note</h2>
+    <p>The numbers produced by <code>go run ./cmd/scheduler-benchmark ...</code> are in-memory benchmark numbers only. They are useful for scheduler cost and fairness shape, but they are not PostgreSQL-backed queue measurements.</p>
+  </section>
+
+  <section class="section">
     <h2>Run</h2>
     <p>From the repository root:</p>
     <pre><code>go run ./cmd/scheduler-benchmark</code></pre>
