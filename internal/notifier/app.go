@@ -2,13 +2,10 @@ package notifier
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"webhook-notifier/internal/config"
 	"webhook-notifier/internal/delivery"
@@ -95,112 +92,4 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 	}
 
 	return application, nil
-}
-
-func (application *Application) Run(requestContext context.Context) error {
-	scheduledJobs := application.scheduler.Start(requestContext)
-	application.startMetricsReporter(requestContext)
-
-	var workerGroup sync.WaitGroup
-	for workerIndex := 0; workerIndex < application.config.WorkerCount; workerIndex++ {
-		workerGroup.Add(1)
-		go func(workerID int) {
-			defer workerGroup.Done()
-			application.runWorker(requestContext, workerID, scheduledJobs)
-		}(workerIndex + 1)
-	}
-
-	serverErrors := make(chan error, 1)
-	queueErrors := make(chan error, 1)
-	go func() {
-		application.logger.Info("starting notifier", "address", application.config.HTTPAddress, "workerCount", application.config.WorkerCount)
-		listenError := application.httpServer.ListenAndServe()
-		if listenError != nil && !errors.Is(listenError, http.ErrServerClosed) {
-			serverErrors <- listenError
-			return
-		}
-		serverErrors <- nil
-	}()
-
-	go func() {
-		queueErrors <- application.runQueuePoller(requestContext)
-	}()
-
-	select {
-	case <-requestContext.Done():
-	case serverError := <-serverErrors:
-		if serverError != nil {
-			application.scheduler.Close()
-			return serverError
-		}
-	case queueError := <-queueErrors:
-		if queueError != nil {
-			application.scheduler.Close()
-			return queueError
-		}
-	}
-
-	application.scheduler.Close()
-
-	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), application.config.ShutdownTimeout)
-	defer cancelShutdown()
-
-	shutdownError := application.httpServer.Shutdown(shutdownContext)
-	registryCloseError := application.registry.Close()
-	queueCloseError := application.workQueue.Close()
-	workerGroup.Wait()
-	if shutdownError != nil {
-		return shutdownError
-	}
-	if registryCloseError != nil {
-		return registryCloseError
-	}
-	if queueCloseError != nil {
-		return queueCloseError
-	}
-
-	return nil
-}
-
-func (application *Application) runQueuePoller(requestContext context.Context) error {
-	claimOwner := fmt.Sprintf("notifier-%d", time.Now().UnixNano())
-	application.logger.Info(
-		"starting postgres work queue poller",
-		"claimBatchSize", application.config.QueueClaimBatchSize,
-		"pollInterval", application.config.QueuePollInterval.String(),
-		"claimOwner", claimOwner,
-	)
-
-	pollTicker := time.NewTicker(application.config.QueuePollInterval)
-	defer pollTicker.Stop()
-
-	for {
-		if queueError := application.claimAndSchedule(requestContext, claimOwner); queueError != nil {
-			return queueError
-		}
-
-		select {
-		case <-requestContext.Done():
-			return nil
-		case <-pollTicker.C:
-		}
-	}
-}
-
-func (application *Application) claimAndSchedule(requestContext context.Context, claimOwner string) error {
-	queuedDeliveries, claimError := application.workQueue.ClaimAvailableDeliveries(
-		requestContext,
-		claimOwner,
-		application.config.QueueClaimBatchSize,
-		time.Now().UTC(),
-	)
-	if claimError != nil {
-		return claimError
-	}
-
-	for _, queuedDelivery := range queuedDeliveries {
-		application.scheduler.Enqueue(queuedDelivery.Job)
-	}
-
-	return nil
 }
