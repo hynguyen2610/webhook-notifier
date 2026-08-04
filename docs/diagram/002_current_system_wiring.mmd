@@ -1,0 +1,61 @@
+flowchart TB
+
+    Producer["Mock Event Producer"]
+
+    PG[("PostgreSQL<br/>Webhook Delivery Queue")]
+
+    subgraph Instance1["Notifier Instance #1"]
+
+        Poller1["Queue Poller"]
+        Scheduler1["Round Robin Scheduler"]
+        Workers1["Worker Pool"]
+        Delivery1["Delivery Interceptor<br/>Retry & Result Handler"]
+
+    end
+
+    subgraph Instance2["Notifier Instance #2"]
+
+        Poller2["Queue Poller"]
+        Scheduler2["Round Robin Scheduler"]
+        Workers2["Worker Pool"]
+        Delivery2["Delivery Interceptor<br/>Retry & Result Handler"]
+
+    end
+
+    subgraph Customers["Customer Webhook Endpoints"]
+
+        A["Customer A"]
+        B["Customer B"]
+        C["Customer C"]
+
+    end
+
+    Producer -->|"Insert delivery jobs"| PG
+
+    PG -->|"Claim (FOR UPDATE SKIP LOCKED)"| Poller1
+    PG -->|"Claim (FOR UPDATE SKIP LOCKED)"| Poller2
+
+    Poller1 --> Scheduler1
+    Poller2 --> Scheduler2
+
+    Scheduler1 --> Workers1
+    Scheduler2 --> Workers2
+
+    Workers1 --> Delivery1
+    Workers2 --> Delivery2
+
+    Delivery1 -->|"HTTP POST"| A
+    Delivery1 -->|"HTTP POST"| B
+    Delivery1 -->|"HTTP POST"| C
+
+    Delivery2 -->|"HTTP POST"| A
+    Delivery2 -->|"HTTP POST"| B
+    Delivery2 -->|"HTTP POST"| C
+
+    Delivery1 -->|"2xx → Complete"| PG
+    Delivery1 -->|"Retryable → Update available_at"| PG
+    Delivery1 -->|"Permanent Failure"| PG
+
+    Delivery2 -->|"2xx → Complete"| PG
+    Delivery2 -->|"Retryable → Update available_at"| PG
+    Delivery2 -->|"Permanent Failure"| PG

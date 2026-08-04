@@ -1,0 +1,40 @@
+flowchart TB
+
+Client["Producer Or User-Facing Service"]
+RegistrationService["Webhook Registration Service"]
+
+subgraph "Future Runtime Platform"
+  Gateway["Ingress / API Gateway"]
+
+  subgraph "Notifier Deployment"
+    NotifierA["Notifier Instance A"]
+    NotifierB["Notifier Instance B"]
+    NotifierC["Notifier Instance C"]
+  end
+
+  QueueDatabase[("PostgreSQL Queue + Registration Store")]
+  Cache["Optional Queue Or Rate-Control Cache"]
+end
+
+CustomerA["Customer Webhook A"]
+CustomerB["Customer Webhook B"]
+CustomerC["Customer Webhook C"]
+
+Client --> Gateway
+RegistrationService --> QueueDatabase
+
+Gateway --> NotifierA
+Gateway --> NotifierB
+Gateway --> NotifierC
+
+NotifierA --> QueueDatabase
+NotifierB --> QueueDatabase
+NotifierC --> QueueDatabase
+
+NotifierA -.optional control plane.-> Cache
+NotifierB -.optional control plane.-> Cache
+NotifierC -.optional control plane.-> Cache
+
+NotifierA --> CustomerA
+NotifierB --> CustomerB
+NotifierC --> CustomerC
