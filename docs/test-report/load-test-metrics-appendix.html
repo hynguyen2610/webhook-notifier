@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Load Test Metrics Appendix</title>
+<style>
+:root{
+  --background:#f5f1e8;
+  --surface:#ffffff;
+  --surface-soft:#f7fafc;
+  --text:#1f2933;
+  --muted:#52606d;
+  --accent:#0f4c5c;
+  --accent-soft:#2c7da0;
+  --border:#d9e2ec;
+  --code:#102a43;
+  --good:#1f7a1f;
+  --warn:#9a6700;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:linear-gradient(180deg,#f7f1e8 0%,#eef4f8 100%);
+  color:var(--text);
+}
+main{
+  max-width:980px;
+  margin:0 auto;
+  padding:40px 20px 64px;
+}
+.hero,.section{
+  background:var(--surface);
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:22px;
+  box-shadow:0 14px 32px rgba(15,23,42,.08);
+}
+.hero{
+  padding:28px 30px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-soft));
+  color:#fff;
+}
+.hero h1{
+  margin:0 0 10px;
+  font-size:36px;
+  line-height:1.1;
+}
+.hero p{
+  margin:0;
+  max-width:760px;
+  color:rgba(255,255,255,.9);
+  line-height:1.7;
+}
+.section{
+  margin-top:24px;
+  padding:24px;
+}
+h2{
+  margin:0 0 12px;
+  font-size:24px;
+  color:var(--code);
+}
+h3{
+  margin:18px 0 8px;
+  font-size:18px;
+  color:var(--code);
+}
+p, li{
+  line-height:1.7;
+}
+ul{
+  margin:10px 0 0 20px;
+  padding:0;
+}
+code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  background:#eef2f6;
+  color:var(--code);
+  padding:2px 6px;
+  border-radius:8px;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:14px;
+  background:var(--surface-soft);
+  border-radius:14px;
+  overflow:hidden;
+}
+th,td{
+  padding:12px 14px;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+  text-align:left;
+}
+th{
+  background:#eaf1f7;
+  color:var(--code);
+}
+tr:last-child td{
+  border-bottom:none;
+}
+.callout{
+  margin-top:14px;
+  padding:14px 16px;
+  border-left:4px solid var(--accent-soft);
+  background:#eef6fb;
+  border-radius:12px;
+}
+.good{color:var(--good);}
+.warn{color:var(--warn);}
+@media (max-width:720px){
+  .hero h1{font-size:30px;}
+  .section{padding:20px 18px;}
+  th,td{padding:10px 11px;}
+}
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1>Load Test Metrics Appendix</h1>
+    <p>This appendix explains how the repository records benchmark and load-test-style metrics, what each metric means, and where interpretation can go wrong. It is intended to help reviewers understand what the numbers actually prove before treating them as fairness or scale evidence.</p>
+  </section>
+
+  <section class="section">
+    <h2>Metric Families</h2>
+    <p>The most important scope rule in this repository is simple: the numbers produced by <code>go run ./cmd/scheduler-benchmark ...</code> are in-memory numbers only. They are useful for component behavior and fairness shape, but they are not PostgreSQL-backed queue measurements.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Benchmark Path</th>
+          <th>What Is Measured</th>
+          <th>What Is Excluded</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>cmd/scheduler-benchmark</code> in <code>scheduler</code> mode</td>
+          <td>Round-robin scheduler cost, synthetic worker progress, fairness shape under an in-process harness</td>
+          <td>PostgreSQL, notifier HTTP ingest, real webhook delivery, retry and DLQ behavior</td>
+        </tr>
+        <tr>
+          <td><code>cmd/scheduler-benchmark</code> in <code>app</code> mode</td>
+          <td>In-memory notifier flow: enqueue, queue claim, scheduler handoff, worker execution, synthetic completion timing</td>
+          <td>PostgreSQL queue ordering, real outbound HTTP, deployment-level multi-instance contention</td>
+        </tr>
+        <tr>
+          <td><code>scripts/run-multi-instance-benchmark.sh</code></td>
+          <td>PostgreSQL-backed queue claiming across multiple notifier processes, real worker execution, local mock receiver HTTP delivery</td>
+          <td>Notifier ingest API cost, retries, dead letters, remote network behavior, production infrastructure tuning</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>How Throughput Metrics Are Recorded</h2>
+    <h3>Scheduler Throughput Report</h3>
+    <p>The throughput table in <code>cmd/scheduler-benchmark</code> comes from Go's <code>testing.Benchmark</code> helper and records in-memory numbers only. For each scenario, one benchmark iteration creates a scheduler, enqueues all jobs, drains all scheduled jobs, and shuts the scheduler down.</p>
+    <ul>
+      <li><code>ns/op</code>: average nanoseconds for one full benchmark iteration</li>
+      <li><code>allocs/op</code>: average heap allocations for one iteration</li>
+      <li><code>bytes/op</code>: average allocated bytes for one iteration</li>
+      <li><code>ops/sec</code>: derived as <code>1 second / ns/op</code></li>
+      <li><code>jobs/sec</code>: derived as <code>ops/sec * jobs per iteration</code></li>
+    </ul>
+
+    <h3>Fairness Run Throughput</h3>
+    <p>The fairness tables use wall-clock timing instead of Go microbenchmark timing, but in <code>cmd/scheduler-benchmark</code> they are still in-memory measurements unless you are using the separate PostgreSQL-backed multi-instance benchmark script. The run starts immediately before work begins and ends when the final job completes.</p>
+    <ul>
+      <li><code>duration</code>: finish timestamp minus start timestamp</li>
+      <li><code>jobs/sec</code>: total completed jobs divided by <code>duration</code></li>
+    </ul>
+
+    <div class="callout">
+      <strong>Interpretation note:</strong> scheduler <code>jobs/sec</code> and multi-instance <code>jobs/sec</code> are not interchangeable. The first is an in-memory synthetic component benchmark. The second is a PostgreSQL-backed processing-path benchmark.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>How Fairness Metrics Are Recorded</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>How It Is Recorded</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>first completion</code></td>
+          <td>Timestamp of the first completed job for a customer minus run start time</td>
+          <td>How quickly that customer begins to make visible progress</td>
+        </tr>
+        <tr>
+          <td><code>finish completion</code></td>
+          <td>Timestamp of the final completed job for a customer minus run start time</td>
+          <td>How long that customer waits to fully finish its queued work</td>
+        </tr>
+        <tr>
+          <td><code>early completion count</code></td>
+          <td>How many of the first <code>N</code> completed jobs belong to a customer</td>
+          <td>Whether the customer appears early in the run or is effectively starved at the beginning</td>
+        </tr>
+        <tr>
+          <td><code>early completion share</code></td>
+          <td><code>early completion count / early window size</code></td>
+          <td>The customer's share of the first visible completions</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>In the current scheduler fairness report, the default early window is the first <code>20</code> completions. In smaller scenarios, the window is capped at the total number of jobs in the scenario.</p>
+  </section>
+
+  <section class="section">
+    <h2>How The Multi-Instance Benchmark Records Results</h2>
+    <p>The PostgreSQL-backed multi-instance benchmark preloads registrations and queue rows into a dedicated benchmark database, launches <code>1</code>, <code>2</code>, or <code>4</code> notifier processes, and waits until all rows are marked <code>completed</code>.</p>
+    <ul>
+      <li>Run start time is recorded from PostgreSQL using <code>clock_timestamp()</code></li>
+      <li>Completion timing is read from <code>webhook_delivery_queue.completed_at</code></li>
+      <li>Total throughput is derived from the maximum completion timestamp seen in that run</li>
+      <li>Per-customer progress comes from grouping completed rows by <code>customer_id</code></li>
+      <li>Early-share values come from the first completed rows ordered by <code>completed_at, id</code></li>
+    </ul>
+
+    <div class="callout">
+      <strong>Why this matters:</strong> because the multi-instance benchmark uses real PostgreSQL completion timestamps, it gives stronger evidence about claim order and process contention than the in-memory benchmark does.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>How Throughput And Fairness Are Measured In Multi-Instance Runs</h2>
+    <p>In the multi-instance benchmark, the measurement source of truth is the PostgreSQL queue table, not an in-memory benchmark harness. Every notifier instance works against the same <code>webhook_delivery_queue</code> table, and the benchmark reads the final timing data back from PostgreSQL after the run finishes.</p>
+
+    <h3>Throughput</h3>
+    <p>Throughput answers one question: how quickly did all notifier instances together drain the queued work?</p>
+    <ul>
+      <li>The script records the run start timestamp from PostgreSQL with <code>clock_timestamp()</code></li>
+      <li>Each delivery row is considered finished when its status becomes <code>completed</code> and its <code>completed_at</code> column is set</li>
+      <li>Total duration is measured as the latest <code>completed_at</code> in the run minus the benchmark start time</li>
+      <li>Total <code>jobs/sec</code> is measured as <code>completed row count / total duration</code></li>
+    </ul>
+    <p>Formula:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Formula</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>total duration</code></td>
+          <td><code>max(completed_at) - benchmark_start_time</code></td>
+        </tr>
+        <tr>
+          <td><code>jobs/sec</code></td>
+          <td><code>count(completed rows) / total duration</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Fairness</h3>
+    <p>Fairness answers a different question: as the shared queue drains, do smaller customers start making progress early, or do large customers dominate the beginning of the run?</p>
+    <ul>
+      <li><code>first completion</code> is the earliest <code>completed_at</code> for a customer minus the run start time</li>
+      <li><code>finish completion</code> is the latest <code>completed_at</code> for a customer minus the run start time</li>
+      <li><code>early completion share</code> is the fraction of the first <code>N</code> completed rows that belong to a given customer</li>
+      <li>The current benchmark uses <code>N = 20</code> for that early window</li>
+    </ul>
+    <p>Formula:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Formula</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>first completion</code></td>
+          <td><code>min(completed_at for customer) - benchmark_start_time</code></td>
+        </tr>
+        <tr>
+          <td><code>finish completion</code></td>
+          <td><code>max(completed_at for customer) - benchmark_start_time</code></td>
+        </tr>
+        <tr>
+          <td><code>early completion share</code></td>
+          <td><code>customer rows in first N completions / N</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Important interpretation note:</strong> a multi-instance run can show better throughput while still showing poor fairness. That usually means the system is draining work faster overall, but PostgreSQL claim order or queue insertion order is still allowing one customer to dominate the early part of the run.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>What A Good Or Bad Number Looks Like</h2>
+    <ul>
+      <li><span class="good">Good throughput trend:</span> <code>jobs/sec</code> rises as worker count or instance count rises, while total duration falls.</li>
+      <li><span class="good">Good fairness trend:</span> non-whale customers show early first completions and meaningful early-share presence even when whales dominate the queue.</li>
+      <li><span class="warn">Warning sign:</span> one whale customer owns nearly all of the early-share window.</li>
+      <li><span class="warn">Warning sign:</span> non-whale first completion times cluster close to the end of the run instead of near the beginning.</li>
+      <li><span class="warn">Warning sign:</span> throughput improves but fairness stays poor, which can mean queue claim order is overpowering the scheduler.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2>Common Interpretation Traps</h2>
+    <ul>
+      <li>Do not forget that <code>go run ./cmd/scheduler-benchmark --include-large-fairness-case=false</code> records in-memory numbers only.</li>
+      <li>Do not treat scheduler-mode <code>ns/op</code> as production latency. It is a component microbenchmark.</li>
+      <li>Do not compare in-memory app-mode fairness directly against PostgreSQL-backed multi-instance fairness as if they were identical measurements.</li>
+      <li>Do not assume rising throughput means fairness improved. Throughput and fairness can diverge.</li>
+      <li>Do not treat a local mock receiver as proof of real network behavior.</li>
+      <li>Do not ignore insertion order. If queue rows are preloaded in customer-grouped order, claim order can dominate the early part of the run.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2>Repository Sources</h2>
+    <ul>
+      <li><code>cmd/scheduler-benchmark/main.go</code>: throughput benchmark collection and report output</li>
+      <li><code>cmd/scheduler-benchmark/fairness_scenarios.go</code>: fairness scenario definitions and wall-clock fairness recording</li>
+      <li><code>internal/notifier/benchmark_runner.go</code>: in-memory app-mode fairness timing</li>
+      <li><code>scripts/run-multi-instance-benchmark.sh</code>: PostgreSQL-backed multi-instance benchmark collection</li>
+      <li><code>internal/workqueue/postgres.go</code>: queue-claim implementation used by the notifier</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
