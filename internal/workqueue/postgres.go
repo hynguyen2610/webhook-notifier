@@ -66,6 +66,10 @@ CREATE INDEX IF NOT EXISTS webhook_delivery_queue_dead_letter_idx
 	return nil
 }
 
+/*
+Job enqueueing also include the job enrichment in database
+This system use database as the source of truth
+*/
 func (repository *PostgresRepository) EnqueueDeliveries(requestContext context.Context, subscriberEvent events.SubscriberEvent, webhookURLs []string, availableAt time.Time) (int, error) {
 	if len(webhookURLs) == 0 {
 		return 0, nil
