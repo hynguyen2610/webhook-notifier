@@ -14,6 +14,7 @@ type Repository interface {
 	MarkDelivered(requestContext context.Context, queueItemID int64, completedAt time.Time) error
 	MarkRetryPending(requestContext context.Context, queueItemID int64, lastError string, nextAvailableAt time.Time, updatedAt time.Time) error
 	MarkDeadLetter(requestContext context.Context, queueItemID int64, lastError string, deadLetteredAt time.Time) error
+	SnapshotQueueState(requestContext context.Context) (QueueStateSnapshot, error)
 	SnapshotDeadLetters(requestContext context.Context) ([]events.DeadLetterMessage, error)
 	Close() error
 }
@@ -21,4 +22,9 @@ type Repository interface {
 type QueuedDelivery struct {
 	QueueItemID int64
 	Job         events.DeliveryJob
+}
+
+type QueueStateSnapshot struct {
+	PendingDeliveryCount   int
+	OldestPendingCreatedAt time.Time
 }

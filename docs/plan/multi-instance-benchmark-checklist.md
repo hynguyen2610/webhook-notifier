@@ -80,6 +80,7 @@ Current run used a fixed per-instance worker count of `4` so the benchmark refle
 - [x] Total jobs
 - [x] Total duration
 - [x] Jobs per second
+- [x] Max oldest pending event age seconds
 - [x] Per-customer first completion time
 - [x] Per-customer finish time
 - [x] Share of the first `20` completed jobs by customer
@@ -110,6 +111,7 @@ Observed on `2026-08-03`: throughput improved with more instances, but the early
 - [x] Add a script that launches `N` notifier instances without local port collisions
 - [x] Add a script that seeds registrations and benchmark workloads repeatably
 - [x] Add a script that collects per-run output into a timestamped report directory
+- [x] Add oldest pending event age reporting to the markdown multi-instance benchmark output
 - [ ] Decide whether to create an HTML report for multi-instance runs similar to `scheduler-benchmark`
 
 ## Exit Criteria

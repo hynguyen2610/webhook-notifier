@@ -128,6 +128,14 @@ func newTestNotifierMetrics() *metrics.NotifierMetrics {
 			Name: "test_webhook_notifier_scheduled_queue_depth",
 			Help: "Test gauge for scheduled queue depth.",
 		}),
+		PendingQueueDepthGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "test_webhook_notifier_pending_queue_depth",
+			Help: "Test gauge for pending PostgreSQL queue depth.",
+		}),
+		OldestPendingAgeGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "test_webhook_notifier_oldest_pending_event_age_seconds",
+			Help: "Test gauge for oldest pending event age.",
+		}),
 	}
 }
 
@@ -312,6 +320,25 @@ func (queue *testQueue) SnapshotDeadLetters(_ context.Context) ([]events.DeadLet
 	}
 
 	return deadLetterMessages, nil
+}
+
+func (queue *testQueue) SnapshotQueueState(_ context.Context) (workqueue.QueueStateSnapshot, error) {
+	queue.mutex.Lock()
+	defer queue.mutex.Unlock()
+
+	queueState := workqueue.QueueStateSnapshot{}
+	for _, queueItem := range queue.queueItems {
+		if queueItem.status != "pending" {
+			continue
+		}
+
+		queueState.PendingDeliveryCount++
+		if queueState.OldestPendingCreatedAt.IsZero() || queueItem.job.EnqueuedAt.Before(queueState.OldestPendingCreatedAt) {
+			queueState.OldestPendingCreatedAt = queueItem.job.EnqueuedAt
+		}
+	}
+
+	return queueState, nil
 }
 
 func (queue *testQueue) Close() error {

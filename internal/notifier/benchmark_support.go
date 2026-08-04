@@ -157,6 +157,25 @@ func (queue *benchmarkQueue) MarkDeadLetter(_ context.Context, queueItemID int64
 	return nil
 }
 
+func (queue *benchmarkQueue) SnapshotQueueState(_ context.Context) (workqueue.QueueStateSnapshot, error) {
+	queue.mutex.Lock()
+	defer queue.mutex.Unlock()
+
+	queueState := workqueue.QueueStateSnapshot{}
+	for _, queueItem := range queue.queueItems {
+		if queueItem.status != "pending" {
+			continue
+		}
+
+		queueState.PendingDeliveryCount++
+		if queueState.OldestPendingCreatedAt.IsZero() || queueItem.job.EnqueuedAt.Before(queueState.OldestPendingCreatedAt) {
+			queueState.OldestPendingCreatedAt = queueItem.job.EnqueuedAt
+		}
+	}
+
+	return queueState, nil
+}
+
 func (queue *benchmarkQueue) SnapshotDeadLetters(_ context.Context) ([]events.DeadLetterMessage, error) {
 	queue.mutex.Lock()
 	defer queue.mutex.Unlock()

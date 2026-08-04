@@ -220,6 +220,8 @@ func newBenchmarkNotifierMetrics() *metrics.NotifierMetrics {
 		DeadLetterCounter:         prometheus.NewCounter(prometheus.CounterOpts{Name: "benchmark_dead_letter_total", Help: "Benchmark counter."}),
 		DeliveryDurationHistogram: prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "benchmark_delivery_duration_seconds", Help: "Benchmark histogram."}, []string{"customer_id", "status_family"}),
 		ScheduledQueueDepthGauge:  prometheus.NewGauge(prometheus.GaugeOpts{Name: "benchmark_scheduled_queue_depth", Help: "Benchmark gauge."}),
+		PendingQueueDepthGauge:    prometheus.NewGauge(prometheus.GaugeOpts{Name: "benchmark_pending_queue_depth", Help: "Benchmark gauge."}),
+		OldestPendingAgeGauge:     prometheus.NewGauge(prometheus.GaugeOpts{Name: "benchmark_oldest_pending_event_age_seconds", Help: "Benchmark gauge."}),
 	}
 }
 

@@ -226,6 +226,27 @@ WHERE id = $1`,
 	)
 }
 
+func (repository *PostgresRepository) SnapshotQueueState(requestContext context.Context) (QueueStateSnapshot, error) {
+	var queueState QueueStateSnapshot
+	var oldestPendingCreatedAt sql.NullTime
+
+	queryError := repository.databaseConnection.QueryRowContext(
+		requestContext,
+		`SELECT COUNT(*), MIN(created_at)
+FROM webhook_delivery_queue
+WHERE status = 'pending'`,
+	).Scan(&queueState.PendingDeliveryCount, &oldestPendingCreatedAt)
+	if queryError != nil {
+		return QueueStateSnapshot{}, fmt.Errorf("query queue state snapshot: %w", queryError)
+	}
+
+	if oldestPendingCreatedAt.Valid {
+		queueState.OldestPendingCreatedAt = oldestPendingCreatedAt.Time.UTC()
+	}
+
+	return queueState, nil
+}
+
 func (repository *PostgresRepository) SnapshotDeadLetters(requestContext context.Context) ([]events.DeadLetterMessage, error) {
 	rows, queryError := repository.databaseConnection.QueryContext(
 		requestContext,

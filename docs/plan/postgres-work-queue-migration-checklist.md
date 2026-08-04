@@ -85,7 +85,7 @@ Current implementation uses `FOR UPDATE SKIP LOCKED` in `ClaimAvailableDeliverie
 
 - [ ] Replace Kafka-specific logs with queue-specific logs
 - [ ] Add queue polling and claim metrics
-- [ ] Add queue depth metrics
+- [x] Add queue depth metrics
 - [ ] Add dead-letter record metrics sourced from PostgreSQL flow
 - [x] Keep health endpoint behavior meaningful without Kafka
 

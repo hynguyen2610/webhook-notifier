@@ -16,6 +16,8 @@ type NotifierMetrics struct {
 	DeadLetterCounter         prometheus.Counter
 	DeliveryDurationHistogram *prometheus.HistogramVec
 	ScheduledQueueDepthGauge  prometheus.Gauge
+	PendingQueueDepthGauge    prometheus.Gauge
+	OldestPendingAgeGauge     prometheus.Gauge
 }
 
 func NewNotifierMetrics() *NotifierMetrics {
@@ -48,6 +50,14 @@ func NewNotifierMetrics() *NotifierMetrics {
 		ScheduledQueueDepthGauge: promauto.NewGauge(prometheus.GaugeOpts{
 			Name: "webhook_notifier_scheduled_queue_depth",
 			Help: "Approximate number of queued delivery jobs waiting for workers.",
+		}),
+		PendingQueueDepthGauge: promauto.NewGauge(prometheus.GaugeOpts{
+			Name: "webhook_notifier_pending_queue_depth",
+			Help: "Number of pending delivery rows currently waiting in PostgreSQL.",
+		}),
+		OldestPendingAgeGauge: promauto.NewGauge(prometheus.GaugeOpts{
+			Name: "webhook_notifier_oldest_pending_event_age_seconds",
+			Help: "Age in seconds of the oldest pending delivery row in PostgreSQL.",
 		}),
 	}
 }

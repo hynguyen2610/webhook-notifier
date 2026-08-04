@@ -41,6 +41,23 @@ func (application *Application) startMetricsReporter(requestContext context.Cont
 				return
 			case <-reportTicker.C:
 				application.notifierMetrics.ScheduledQueueDepthGauge.Set(float64(application.scheduler.QueueDepth()))
+				queueState, snapshotError := application.workQueue.SnapshotQueueState(requestContext)
+				if snapshotError != nil {
+					application.logger.Warn("snapshot queue state for metrics", "error", snapshotError)
+					continue
+				}
+
+				application.notifierMetrics.PendingQueueDepthGauge.Set(float64(queueState.PendingDeliveryCount))
+				if queueState.OldestPendingCreatedAt.IsZero() {
+					application.notifierMetrics.OldestPendingAgeGauge.Set(0)
+					continue
+				}
+
+				oldestPendingAge := time.Since(queueState.OldestPendingCreatedAt).Seconds()
+				if oldestPendingAge < 0 {
+					oldestPendingAge = 0
+				}
+				application.notifierMetrics.OldestPendingAgeGauge.Set(oldestPendingAge)
 			}
 		}
 	}()
