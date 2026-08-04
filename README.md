@@ -404,7 +404,59 @@ curl -sS -X POST http://localhost:28080/events/batch \
   ]'
 ```
 
-## Scheduler Benchmark
+## Multi-Instance Benchmark
+
+Run the PostgreSQL-backed multi-instance benchmark from the repository root:
+
+```bash
+bash scripts/run-multi-instance-benchmark.sh
+```
+
+What this benchmark covers:
+
+- preloaded PostgreSQL queue rows
+- PostgreSQL row claiming across multiple notifier processes
+- round-robin scheduler handoff
+- worker execution
+- local mock receiver HTTP delivery
+
+What this benchmark does not cover:
+
+- notifier HTTP ingest cost
+- retry or dead-letter behavior
+- remote network latency
+- production PostgreSQL sizing or tuning
+
+Latest local result captured on `2026-08-03`:
+
+- command: `bash scripts/run-multi-instance-benchmark.sh`
+- scenario: `two-whales-5000-two-non-whales-100`
+- report: `loadtest/reports/multi-instance-benchmark-20260803-235517.md`
+- per-instance worker count: `4`
+- queue claim batch size: `32`
+- queue poll interval: `50ms`
+- retries: disabled
+
+| Notifier Instances | Total Jobs | Total Duration | Jobs/Sec | `customer-c` First Completion | `customer-d` First Completion |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `1` | `10200` | `16.606s` | `614.23` | `16085.589ms` | `16250.358ms` |
+| `2` | `10200` | `13.187s` | `773.49` | `8852.968ms` | `8908.239ms` |
+| `4` | `10200` | `10.990s` | `928.15` | `5237.529ms` | `5281.965ms` |
+
+Key takeaway from that run:
+
+- throughput scaled up with more notifier instances: about `+25.93%` from `1` to `2` instances and about `+51.11%` from `1` to `4` instances
+- fairness did not hold for the small customers in the early-completion window: `customer-a` owned the first `20` completions in every run
+- this points to PostgreSQL claim order dominating scheduler fairness when the queue is preloaded in customer-grouped order
+
+Use this result carefully:
+
+- it is stronger evidence than the in-memory scheduler benchmark because it includes real PostgreSQL claim behavior
+- it is still a local-machine benchmark, not production proof
+- it is a processing-path benchmark, not an ingest-path benchmark
+- the next useful experiment is to vary queue insertion order, claim batch size, and poll interval to see how much of the fairness regression comes from queue claiming versus worker execution
+
+## In-Memory Scheduler Benchmark
 
 Run the benchmark from the repository root:
 
