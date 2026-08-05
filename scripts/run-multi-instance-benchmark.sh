@@ -33,9 +33,14 @@ REPORT_PATH="${REPORT_DIR}/multi-instance-benchmark-${TIMESTAMP}.md"
 
 RECEIVER_PROCESS_ID=""
 NOTIFIER_PROCESS_IDS=()
+LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS="0"
 
 log() {
   printf '[multi-instance-benchmark] %s\n' "$1"
+}
+
+current_benchmark_timestamp() {
+  sql_benchmark "SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"');"
 }
 
 sql_admin() {
@@ -83,13 +88,41 @@ wait_for_health() {
 
 wait_for_completed_count() {
   local expected_count="$1"
+  LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS="0"
 
-  for _ in $(seq 1 600); do
+  for attempt_number in $(seq 1 600); do
+    local queue_snapshot
+    queue_snapshot="$(sql_benchmark "
+SELECT
+  COUNT(*) FILTER (WHERE status = 'completed') AS completed_count,
+  COALESCE(
+    ROUND(
+      MAX(
+        CASE
+          WHEN status = 'pending' THEN EXTRACT(EPOCH FROM clock_timestamp() - created_at)
+          ELSE 0
+        END
+      )::numeric,
+      3
+    ),
+    0
+  ) AS max_oldest_pending_event_age_seconds
+FROM webhook_delivery_queue;
+")"
     local completed_count
-    completed_count="$(sql_benchmark "SELECT COUNT(*) FROM webhook_delivery_queue WHERE status = 'completed';")"
+    local observed_oldest_pending_event_age_seconds
+    IFS=$'\t' read -r completed_count observed_oldest_pending_event_age_seconds <<<"${queue_snapshot}"
+    if awk "BEGIN {exit !(${observed_oldest_pending_event_age_seconds} > ${LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS})}"; then
+      LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS="${observed_oldest_pending_event_age_seconds}"
+    fi
     if [[ "${completed_count}" == "${expected_count}" ]]; then
       return 0
     fi
+
+    if (( attempt_number % 50 == 0 )); then
+      log "progress ${completed_count}/${expected_count} completed; max oldest pending age ${LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS}s"
+    fi
+
     sleep 0.1
   done
 
@@ -168,7 +201,7 @@ VALUES
 
 preload_workload() {
   local created_at
-  created_at="$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")"
+  created_at="$(current_benchmark_timestamp)"
 
   sql_benchmark "
 INSERT INTO webhook_delivery_queue (
@@ -284,6 +317,7 @@ append_run_report() {
     printf -- '- total jobs: `%s`\n' "${TOTAL_EVENT_COUNT}"
     printf -- '- total duration seconds: `%s`\n' "$(sql_benchmark "SELECT ROUND((MAX(EXTRACT(EPOCH FROM completed_at)) - ${benchmark_started_at_epoch})::numeric, 3) FROM webhook_delivery_queue WHERE status = 'completed';")"
     printf -- '- jobs per second: `%s`\n\n' "$(sql_benchmark "SELECT ROUND(COUNT(*) / NULLIF((MAX(EXTRACT(EPOCH FROM completed_at)) - ${benchmark_started_at_epoch}), 0)::numeric, 2) FROM webhook_delivery_queue WHERE status = 'completed';")"
+    printf -- '- max oldest pending event age seconds: `%s`\n\n' "${LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS}"
     printf '| Customer | Job Count | First Completion ms | Finish Completion ms | Early Share of First %s |\n' "${EARLY_COMPLETION_WINDOW}"
     printf '| --- | ---: | ---: | ---: | ---: |\n'
     sql_benchmark "
