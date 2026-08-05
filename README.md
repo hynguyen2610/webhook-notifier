@@ -411,6 +411,22 @@ Run the PostgreSQL-backed multi-instance benchmark from the repository root:
 bash scripts/run-multi-instance-benchmark.sh
 ```
 
+Each per-instance section in the generated markdown report includes total jobs, total duration, jobs per second, and the maximum observed age of the oldest pending event during that run.
+
+Run the assignment-focused single-instance smoke load test:
+
+```bash
+bash scripts/run-assignment-load-test.sh smoke
+```
+
+Run the assignment-focused single-instance fairness load test:
+
+```bash
+bash scripts/run-assignment-load-test.sh fairness
+```
+
+Those assignment load tests preserve the existing multi-instance benchmark command and intentionally keep the measurement scope simple: direct PostgreSQL queue preload, one notifier instance, one mock receiver, and a markdown report centered on queue depth, end-to-end delivery latency, retry count, and oldest pending event age.
+
 What this benchmark covers:
 
 - preloaded PostgreSQL queue rows
@@ -523,5 +539,5 @@ go test ./...
 ## Known Gaps
 
 - outbound webhook payload is still the same shape as the internal subscriber event
-- queue polling and queue depth metrics can be improved
+- queue polling and claim metrics can be improved further
 - some older planning and diagram docs still describe the retired Kafka architecture
