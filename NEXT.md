@@ -2,43 +2,31 @@
 
 ## Goal
 
-- [x] Implement the single-instance load test from `docs/spec/load-test.md` as a simple PostgreSQL-backed path
+- [ ] Make the multi-instance load test finish quickly enough for normal local use and exit cleanly after all measurements are recorded
 
-## Guardrails
+## Runtime Target
 
-- [x] Preserve the existing multi-instance benchmark command and behavior unchanged
-- [x] Add the single-instance load test as an explicit mode, wrapper, or clearly named command
-- [x] Keep the implementation simple enough for local assignment use without extra load-test infrastructure
+- [ ] Keep the default `balanced` preset under `1` minute on a typical local machine
+- [ ] Keep the default workload only large enough to show throughput improvement and fairness behavior across `1`, `2`, and `4` instances
+- [ ] Treat the runtime target as a dataset-sizing guideline, not as an early-stop condition for the benchmark
+- [ ] Ensure the benchmark always completes all configured instance-count measurements before exiting
 
-## Test Suites
+## Exit Behavior
 
-- [x] Add a smoke load test dataset: `customer-a=100`, `customer-b=20`, `customer-c=20`
-- [x] Add a fairness load test dataset: `whale=100000`, `small-b=100`, `small-c=100`
-- [x] Keep both suites on one notifier instance with `20` workers
-
-## Metrics To Report
-
-- [x] Queue depth from PostgreSQL queue snapshots during the run
-- [x] End-to-end delivery latency computed as `completed_at - created_at`
-- [x] Retry count computed from queue retry state
-- [x] Oldest pending event age during the run
+- [ ] Make notifier shutdown progress visible after each measurement section is written
+- [ ] Let the benchmark finish all instance measurements before exit
+- [ ] Make the post-measurement shutdown path clear and graceful so the tool does not appear stuck after the benchmark is already complete
 
 ## Implementation Steps
 
-- [x] Reuse the existing PostgreSQL-backed benchmark script helpers for database setup, receiver startup, queue preload, notifier startup, and report generation
-- [x] Add a single-instance load test path that does not run the `1/2/4` instance comparison loop
-- [x] Add a markdown report format focused only on the four assignment metrics and the validation outcome
-- [x] Document clearly in the report that queue rows are preloaded directly into PostgreSQL and that HTTP ingest benchmarking is out of scope
-
-## Validation Checks
-
-- [x] Smoke test: queue depth returns to zero, retry count stays zero, oldest pending age stays bounded, all events are delivered
-Smoke run completed on `2026-08-05` and generated a report under `loadtest/reports/`.
-- [ ] Fairness test: queue drains fully, retry count stays zero, oldest pending age does not continuously increase, small-customer events complete while whale backlog is still being processed
-- [ ] End-to-end delivery latency remains stable enough to support the assignment narrative in both suites
+- [ ] Tune the default `balanced` preset only by reducing workload size, not by adding a benchmark cutoff
+- [ ] Improve notifier shutdown logging in `scripts/run-multi-instance-benchmark.sh` so users can see which process is still exiting
+- [ ] Log which shutdown phase the script is in and which notifier process is still being waited on
+- [ ] Preserve the existing report-writing behavior that prints report progress after each instance section is appended
+- [ ] Keep the multi-instance comparison semantics unchanged while improving runtime ergonomics
 
 ## Verification
 
-- [x] Run the smoke load test locally and confirm it finishes in under `10` seconds
-- [ ] Run the fairness load test locally and confirm it finishes within the expected `30–60` second target if practical on the local machine
-- [x] Confirm the generated report path is printed and the metric values are believable
+- [ ] Run the default `balanced` preset locally and confirm the full `1` / `2` / `4` comparison finishes in under `1` minute if practical
+- [ ] Confirm the script exits promptly after the final report link is printed
+- [ ] Confirm the report still contains the expected throughput and fairness sections for every instance count
