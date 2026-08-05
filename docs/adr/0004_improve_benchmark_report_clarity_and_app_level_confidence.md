@@ -59,8 +59,10 @@ The benchmark and load-test suite will be improved in four ways:
 4. **Increase confidence in app-mode results incrementally**
    The current in-memory app mode is an intermediate confidence step, not the
    final proof point. Follow-up work should add stronger end-to-end coverage,
-   starting with clearer documentation and then moving toward a PostgreSQL-backed
-   app-mode benchmark path when practical.
+   beginning with a single-instance PostgreSQL-backed integration load test that
+   keeps runtime manageable while validating report metrics against real queue
+   behavior, and only then expanding to broader multi-instance comparisons when
+   practical.
 
 ## Decision Drivers
 
@@ -68,6 +70,7 @@ The benchmark and load-test suite will be improved in four ways:
 - reduce ambiguity about what fairness metrics actually mean
 - avoid overstating confidence from synthetic or partially integrated tests
 - preserve a fast default benchmark while still allowing deeper opt-in runs
+- keep the next confidence step small enough to debug metric behavior quickly
 - create a path from microbenchmark evidence to stronger app-level evidence
 
 ## Consequences
@@ -88,6 +91,8 @@ The benchmark and load-test suite will be improved in four ways:
   correct but confusing
 - stronger app-level confidence will require more setup, runtime, and possibly
   PostgreSQL-backed benchmark infrastructure
+- a staged approach means some metric validation will happen in single-instance
+  integration runs before the same signals are trusted in multi-instance reports
 
 ## Implementation Guidance
 
@@ -99,7 +104,8 @@ The improvement work should proceed in small steps:
 4. make throughput and fairness evidence easier to compare without mixing their
    meaning, including separate tabs in the HTML report
 5. add stronger opt-in app-mode coverage, beginning with current in-memory flow
-   and later evaluating PostgreSQL-backed app-mode runs
+   and then a single-instance PostgreSQL-backed integration load test before
+   broader multi-instance runs
 6. document known confidence limits in every report mode
 
 ## Out Of Scope For This ADR
@@ -113,11 +119,20 @@ This ADR does not define:
 
 Those details should be handled in follow-up checklist work and implementation.
 
+## Follow-Up Direction
+
+The next benchmark-focused change should prefer a single-instance integration
+load test over a broader scale-out pass when the goal is to validate newly
+added report metrics such as oldest pending event age. That narrower path gives
+faster feedback, reduces silent runtime during debugging, and makes it easier to
+separate metric correctness problems from horizontal-scaling behavior.
+
 ## Related Files
 
 - [README.md](../README.md)
 - [README.html](../../cmd/scheduler-benchmark/README.html)
 - [app-load-test-opt-in-checklist.md](../plan/app-load-test-opt-in-checklist.md)
+- [multi-instance-benchmark-checklist.md](../plan/multi-instance-benchmark-checklist.md)
 - [scheduler-benchmark-checklist.md](../plan/scheduler-benchmark-checklist.md)
 - [internal/notifier/app.go](../../internal/notifier/app.go)
 - [cmd/scheduler-benchmark/main.go](../../cmd/scheduler-benchmark/main.go)
