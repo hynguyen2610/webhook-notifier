@@ -13,17 +13,17 @@
 
 ## Exit Behavior
 
-- [ ] Make notifier shutdown progress visible after each measurement section is written
+- [x] Make notifier shutdown progress visible after each measurement section is written
 - [ ] Let the benchmark finish all instance measurements before exit
-- [ ] Make the post-measurement shutdown path clear and graceful so the tool does not appear stuck after the benchmark is already complete
+- [x] Make the post-measurement shutdown path clear and graceful so the tool does not appear stuck after the benchmark is already complete
 
 ## Implementation Steps
 
 - [ ] Tune the default `balanced` preset only by reducing workload size, not by adding a benchmark cutoff
-- [ ] Improve notifier shutdown logging in `scripts/run-multi-instance-benchmark.sh` so users can see which process is still exiting
-- [ ] Log which shutdown phase the script is in and which notifier process is still being waited on
-- [ ] Preserve the existing report-writing behavior that prints report progress after each instance section is appended
-- [ ] Keep the multi-instance comparison semantics unchanged while improving runtime ergonomics
+- [x] Improve notifier shutdown logging in `scripts/run-multi-instance-benchmark.sh` so users can see which process is still exiting
+- [x] Log which shutdown phase the script is in and which notifier process is still being waited on
+- [x] Preserve the existing report-writing behavior that prints report progress after each instance section is appended
+- [x] Keep the multi-instance comparison semantics unchanged while improving runtime ergonomics
 
 ## Verification
 

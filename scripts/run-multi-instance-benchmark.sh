@@ -12,15 +12,40 @@ NOTIFIER_WORKER_COUNT="${NOTIFIER_WORKER_COUNT:-4}"
 NOTIFIER_QUEUE_CLAIM_BATCH_SIZE="${NOTIFIER_QUEUE_CLAIM_BATCH_SIZE:-32}"
 NOTIFIER_QUEUE_POLL_INTERVAL="${NOTIFIER_QUEUE_POLL_INTERVAL:-50ms}"
 NOTIFIER_REQUEST_TIMEOUT="${NOTIFIER_REQUEST_TIMEOUT:-2s}"
+NOTIFIER_STOP_TIMEOUT_SECONDS="${NOTIFIER_STOP_TIMEOUT_SECONDS:-8}"
 INSTANCE_COUNTS=(${INSTANCE_COUNTS:-1 2 4})
+BENCHMARK_PRESET="${1:-balanced}"
 
-CUSTOMER_A_EVENTS="${CUSTOMER_A_EVENTS:-5000}"
-CUSTOMER_B_EVENTS="${CUSTOMER_B_EVENTS:-5000}"
-CUSTOMER_C_EVENTS="${CUSTOMER_C_EVENTS:-100}"
-CUSTOMER_D_EVENTS="${CUSTOMER_D_EVENTS:-100}"
+case "${BENCHMARK_PRESET}" in
+  balanced)
+    CUSTOMER_A_EVENTS="${CUSTOMER_A_EVENTS:-3500}"
+    CUSTOMER_B_EVENTS="${CUSTOMER_B_EVENTS:-3500}"
+    CUSTOMER_C_EVENTS="${CUSTOMER_C_EVENTS:-100}"
+    CUSTOMER_D_EVENTS="${CUSTOMER_D_EVENTS:-100}"
+    SCENARIO_NAME="${SCENARIO_NAME:-two-whales-3500-two-non-whales-100}"
+    ;;
+  legacy-medium)
+    CUSTOMER_A_EVENTS="${CUSTOMER_A_EVENTS:-5000}"
+    CUSTOMER_B_EVENTS="${CUSTOMER_B_EVENTS:-5000}"
+    CUSTOMER_C_EVENTS="${CUSTOMER_C_EVENTS:-100}"
+    CUSTOMER_D_EVENTS="${CUSTOMER_D_EVENTS:-100}"
+    SCENARIO_NAME="${SCENARIO_NAME:-two-whales-5000-two-non-whales-100}"
+    ;;
+  smoke)
+    CUSTOMER_A_EVENTS="${CUSTOMER_A_EVENTS:-100}"
+    CUSTOMER_B_EVENTS="${CUSTOMER_B_EVENTS:-100}"
+    CUSTOMER_C_EVENTS="${CUSTOMER_C_EVENTS:-20}"
+    CUSTOMER_D_EVENTS="${CUSTOMER_D_EVENTS:-20}"
+    SCENARIO_NAME="${SCENARIO_NAME:-two-medium-100-two-non-whales-20}"
+    ;;
+  *)
+    printf 'usage: %s [balanced|legacy-medium|smoke]\n' "$0" >&2
+    exit 1
+    ;;
+esac
+
 TOTAL_EVENT_COUNT=$((CUSTOMER_A_EVENTS + CUSTOMER_B_EVENTS + CUSTOMER_C_EVENTS + CUSTOMER_D_EVENTS))
 EARLY_COMPLETION_WINDOW="${EARLY_COMPLETION_WINDOW:-20}"
-SCENARIO_NAME="${SCENARIO_NAME:-two-whales-5000-two-non-whales-100}"
 
 RECEIVER_HOST="127.0.0.1"
 RECEIVER_PORT="${RECEIVER_HTTP_ADDRESS##*:}"
@@ -37,6 +62,15 @@ LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS="0"
 
 log() {
   printf '[multi-instance-benchmark] %s\n' "$1"
+}
+
+build_terminal_file_link() {
+  local report_path="$1"
+  local report_directory absolute_report_directory absolute_report_path
+  report_directory="$(dirname "${report_path}")"
+  absolute_report_directory="$(cd "${report_directory}" && pwd)"
+  absolute_report_path="${absolute_report_directory}/$(basename "${report_path}")"
+  printf '\033]8;;file://%s\033\\%s\033]8;;\033\\' "${absolute_report_path}" "${absolute_report_path}"
 }
 
 current_benchmark_timestamp() {
@@ -71,6 +105,32 @@ cleanup() {
 
 trap cleanup EXIT
 
+wait_for_process_exit() {
+  local process_id="$1"
+  local timeout_seconds="$2"
+  local max_attempts attempt_number elapsed_seconds
+  max_attempts=$(( timeout_seconds * 4 ))
+
+  if (( max_attempts < 1 )); then
+    max_attempts=1
+  fi
+
+  for attempt_number in $(seq 1 "${max_attempts}"); do
+    if ! kill -0 "${process_id}" >/dev/null 2>&1; then
+      return 0
+    fi
+
+    if (( attempt_number % 4 == 0 )); then
+      elapsed_seconds=$(( attempt_number / 4 ))
+      log "waiting for notifier pid ${process_id} to exit (${elapsed_seconds}/${timeout_seconds}s)"
+    fi
+
+    sleep 0.25
+  done
+
+  ! kill -0 "${process_id}" >/dev/null 2>&1
+}
+
 wait_for_health() {
   local health_url="$1"
   local service_name="$2"
@@ -88,6 +148,7 @@ wait_for_health() {
 
 wait_for_completed_count() {
   local expected_count="$1"
+  log "waiting for ${expected_count} completed jobs"
   LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS="0"
 
   for attempt_number in $(seq 1 600); do
@@ -131,6 +192,7 @@ FROM webhook_delivery_queue;
 }
 
 ensure_benchmark_database() {
+  log "checking benchmark database ${BENCHMARK_DATABASE_NAME}"
   local database_exists
   database_exists="$(sql_admin "SELECT 1 FROM pg_database WHERE datname = '${BENCHMARK_DATABASE_NAME}';")"
   if [[ "${database_exists}" != "1" ]]; then
@@ -140,6 +202,7 @@ ensure_benchmark_database() {
 }
 
 ensure_schema() {
+  log "ensuring benchmark schema exists"
   sql_benchmark "
 CREATE TABLE IF NOT EXISTS webhook_registrations (
   customer_id TEXT NOT NULL,
@@ -173,6 +236,7 @@ CREATE INDEX IF NOT EXISTS webhook_delivery_queue_pending_idx
 }
 
 build_binaries() {
+  log "building notifier and mock receiver binaries"
   mkdir -p "${ARTIFACT_DIR}" "${REPORT_DIR}"
   go build -o "${NOTIFIER_BINARY_PATH}" ./cmd/notifier
   go build -o "${RECEIVER_BINARY_PATH}" ./cmd/mock-webhook-receiver
@@ -186,6 +250,7 @@ start_receiver() {
 }
 
 reset_benchmark_tables() {
+  log "resetting benchmark tables and seeding webhook registrations"
   sql_benchmark "
 TRUNCATE webhook_delivery_queue RESTART IDENTITY;
 DELETE FROM webhook_registrations;
@@ -200,6 +265,7 @@ VALUES
 }
 
 preload_workload() {
+  log "prequeueing workload directly into PostgreSQL"
   local created_at
   created_at="$(current_benchmark_timestamp)"
 
@@ -279,10 +345,23 @@ FROM generate_series(1, ${CUSTOMER_D_EVENTS}) AS sequence_number;
 }
 
 stop_notifiers() {
+  if [[ "${#NOTIFIER_PROCESS_IDS[@]}" -gt 0 ]]; then
+    log "stopping notifier instances"
+  fi
   for process_id in "${NOTIFIER_PROCESS_IDS[@]:-}"; do
     if [[ -n "${process_id}" ]] && kill -0 "${process_id}" >/dev/null 2>&1; then
+      log "sending SIGTERM to notifier pid ${process_id}"
       kill "${process_id}" >/dev/null 2>&1 || true
+      if wait_for_process_exit "${process_id}" "${NOTIFIER_STOP_TIMEOUT_SECONDS}"; then
+        wait "${process_id}" 2>/dev/null || true
+        log "notifier pid ${process_id} exited cleanly"
+        continue
+      fi
+
+      log "notifier pid ${process_id} still running after ${NOTIFIER_STOP_TIMEOUT_SECONDS}s; sending SIGKILL"
+      kill -9 "${process_id}" >/dev/null 2>&1 || true
       wait "${process_id}" 2>/dev/null || true
+      log "notifier pid ${process_id} force-stopped"
     fi
   done
   NOTIFIER_PROCESS_IDS=()
@@ -290,6 +369,7 @@ stop_notifiers() {
 
 start_notifiers() {
   local instance_count="$1"
+  log "starting ${instance_count} notifier instance(s)"
   NOTIFIER_PROCESS_IDS=()
 
   for instance_number in $(seq 1 "${instance_count}"); do
@@ -310,6 +390,7 @@ append_run_report() {
   local instance_count="$1"
   local benchmark_started_at_label="$2"
   local benchmark_started_at_epoch="$3"
+  log "writing report section for ${instance_count} notifier instance(s)"
 
   {
     printf '## %s instance%s\n\n' "${instance_count}" "$([[ "${instance_count}" == "1" ]] && printf '' || printf 's')"
@@ -347,6 +428,8 @@ ORDER BY queue.customer_id;
     done
     printf '\n'
   } >>"${REPORT_PATH}"
+
+  log "report updated after ${instance_count} instance(s): ${REPORT_PATH}"
 }
 
 main() {
@@ -358,6 +441,7 @@ main() {
   {
     printf '# Multi-Instance Benchmark Report\n\n'
     printf -- '- date: `%s`\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    printf -- '- preset: `%s`\n' "${BENCHMARK_PRESET}"
     printf -- '- scenario: `%s`\n' "${SCENARIO_NAME}"
     printf -- '- benchmark database: `%s`\n' "${BENCHMARK_DATABASE_NAME}"
     printf -- '- notifier worker count per instance: `%s`\n' "${NOTIFIER_WORKER_COUNT}"
@@ -374,7 +458,9 @@ main() {
     log "running benchmark with ${instance_count} notifier instance(s)"
     reset_benchmark_tables
     preload_workload
+    log "resetting mock receiver statistics"
     curl -fsS -X POST "${RECEIVER_BASE_URL}/stats/reset" >/dev/null
+    log "capturing benchmark start timestamp"
     benchmark_started_at_label="$(sql_benchmark "SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"');")"
     benchmark_started_at_epoch="$(sql_benchmark "SELECT EXTRACT(EPOCH FROM clock_timestamp());")"
     start_notifiers "${instance_count}"
@@ -383,7 +469,8 @@ main() {
     stop_notifiers
   done
 
-  log "benchmark report written to ${REPORT_PATH}"
+  log "all instance measurements are ready"
+  printf '[multi-instance-benchmark] benchmark report written to %s\n' "$(build_terminal_file_link "${REPORT_PATH}")"
 }
 
 main "$@"
