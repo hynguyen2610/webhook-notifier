@@ -48,6 +48,8 @@ The existing multi-instance benchmark may remain in the repository for separate 
 
 Only the following four metrics are collected.
 
+For this assignment load test, each metric should be derived directly from PostgreSQL queue state so the calculation remains easy to inspect and explain in the report.
+
 ---
 
 ## 1. Queue Depth
@@ -63,6 +65,12 @@ Queue Depth = Number of events currently waiting for delivery.
 ```
 
 For the simple assignment load test, queue depth may be collected from direct PostgreSQL queue snapshots during the run rather than a separate time-series system.
+
+Suggested calculation
+
+```text
+Queue Depth = COUNT(rows WHERE status IN ('pending', 'claimed'))
+```
 
 ### Expected Behaviour
 
@@ -94,6 +102,12 @@ For this assignment, `event_created_at` refers to the time the benchmark creates
 * Retry delays (if applicable)
 
 This metric reflects the time an event spends travelling through the notifier processing path after it has entered the PostgreSQL-backed queue.
+
+Suggested calculation
+
+```text
+End-to-End Delivery Latency = completed_at - created_at
+```
 
 ### Expected Behaviour
 
@@ -127,6 +141,12 @@ Failure scenario
 * Retry count remains bounded.
 * Events are eventually delivered.
 
+Suggested calculation
+
+```text
+Retry Count = SUM(retry_count)
+```
+
 ---
 
 ## 4. Oldest Pending Event Age
@@ -143,6 +163,15 @@ Current Time - Created Time of the oldest unfinished event
 ```
 
 This metric represents how long the oldest event has remained incomplete.
+
+For the simple assignment load test, unfinished events may include both `pending` and currently `claimed` rows so the metric continues to reflect in-flight work rather than dropping to zero immediately after claiming.
+
+Suggested calculation
+
+```text
+Oldest Pending Event Age =
+current_time - MIN(created_at WHERE status IN ('pending', 'claimed'))
+```
 
 ### Expected Behaviour
 
