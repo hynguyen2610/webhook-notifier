@@ -11,7 +11,7 @@ Validate that the Webhook Notifier satisfies the assignment requirements by demo
 
 The tests intentionally focus on a small set of metrics that directly validate these requirements rather than general production performance. The load test should remain simple enough to run locally during assignment work without introducing a separate load-test platform.
 
-This specification defines an additional assignment-focused load test path. It should not require removing or silently changing the existing multi-instance benchmark flow.
+This specification defines an additional single-instance load test path. It should not require removing or silently changing the existing multi-instance benchmark flow.
 
 ---
 
@@ -40,7 +40,7 @@ The following are intentionally excluded from this assignment:
 * Circuit breaker validation
 * Long-duration soak testing
 
-The existing multi-instance benchmark may remain in the repository for separate exploratory or comparison work, but it is not the primary assignment load test defined here.
+The existing multi-instance benchmark may remain in the repository for separate exploratory or comparison work, but it is not the primary single-instance load test defined here.
 
 ---
 
@@ -48,7 +48,7 @@ The existing multi-instance benchmark may remain in the repository for separate 
 
 Only the following four metrics are collected.
 
-For this assignment load test, each metric should be derived directly from PostgreSQL queue state so the calculation remains easy to inspect and explain in the report.
+For this single-instance load test, each metric should be derived directly from PostgreSQL queue state so the calculation remains easy to inspect and explain in the report.
 
 ---
 
@@ -64,7 +64,7 @@ Measure backlog size and verify that work continuously progresses.
 Queue Depth = Number of events currently waiting for delivery.
 ```
 
-For the simple assignment load test, queue depth may be collected from direct PostgreSQL queue snapshots during the run rather than a separate time-series system.
+For the simple single-instance load test, queue depth may be collected from direct PostgreSQL queue snapshots during the run rather than a separate time-series system.
 
 Suggested calculation
 
@@ -93,7 +93,7 @@ End-to-End Delivery Latency =
 delivery_completed_at - event_created_at
 ```
 
-For this assignment, `event_created_at` refers to the time the benchmark creates the queue row for delivery work. Unlike HTTP request duration, this includes:
+For this single-instance load test, `event_created_at` refers to the time the benchmark creates the queue row for delivery work. Unlike HTTP request duration, this includes:
 
 * Queue waiting time
 * Scheduler delay
@@ -164,7 +164,7 @@ Current Time - Created Time of the oldest unfinished event
 
 This metric represents how long the oldest event has remained incomplete.
 
-For the simple assignment load test, unfinished events may include both `pending` and currently `claimed` rows so the metric continues to reflect in-flight work rather than dropping to zero immediately after claiming.
+For the simple single-instance load test, unfinished events may include both `pending` and currently `claimed` rows so the metric continues to reflect in-flight work rather than dropping to zero immediately after claiming.
 
 Suggested calculation
 
@@ -206,7 +206,7 @@ Notifier
 Mock Webhook Endpoints
 ```
 
-Queue rows may be inserted directly by the load test harness instead of being sent through the notifier HTTP ingest API. This keeps the assignment load test simple and focuses the measurement on queue claiming, scheduling, worker execution, retry handling, and delivery completion.
+Queue rows may be inserted directly by the load test harness instead of being sent through the notifier HTTP ingest API. This keeps the single-instance load test simple and focuses the measurement on queue claiming, scheduling, worker execution, retry handling, and delivery completion.
 
 This simple load test path should be implemented as an explicit mode, wrapper, or clearly named command so the repository's existing multi-instance benchmark behavior is not changed accidentally.
 
@@ -338,7 +338,7 @@ The notifier is considered successful when:
 
 These criteria are intended to validate assignment behaviour, not production-scale readiness.
 
-Preserving the existing multi-instance benchmark as a separate command or mode is considered part of keeping this assignment load test low-risk and easy to reason about.
+Preserving the existing multi-instance benchmark as a separate command or mode is considered part of keeping this single-instance load test low-risk and easy to reason about.
 
 ---
 

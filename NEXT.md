@@ -2,12 +2,12 @@
 
 ## Goal
 
-- [x] Implement the assignment load test from `docs/spec/load-test.md` as a simple single-instance PostgreSQL-backed path
+- [x] Implement the single-instance load test from `docs/spec/load-test.md` as a simple PostgreSQL-backed path
 
 ## Guardrails
 
 - [x] Preserve the existing multi-instance benchmark command and behavior unchanged
-- [x] Add the assignment load test as an explicit mode, wrapper, or clearly named command
+- [x] Add the single-instance load test as an explicit mode, wrapper, or clearly named command
 - [x] Keep the implementation simple enough for local assignment use without extra load-test infrastructure
 
 ## Test Suites
@@ -26,14 +26,14 @@
 ## Implementation Steps
 
 - [x] Reuse the existing PostgreSQL-backed benchmark script helpers for database setup, receiver startup, queue preload, notifier startup, and report generation
-- [x] Add a single-instance assignment load test path that does not run the `1/2/4` instance comparison loop
+- [x] Add a single-instance load test path that does not run the `1/2/4` instance comparison loop
 - [x] Add a markdown report format focused only on the four assignment metrics and the validation outcome
 - [x] Document clearly in the report that queue rows are preloaded directly into PostgreSQL and that HTTP ingest benchmarking is out of scope
 
 ## Validation Checks
 
 - [x] Smoke test: queue depth returns to zero, retry count stays zero, oldest pending age stays bounded, all events are delivered
-Smoke run completed on `2026-08-05` with report `loadtest/reports/assignment-load-test-smoke-20260805-032847.md`.
+Smoke run completed on `2026-08-05` and generated a report under `loadtest/reports/`.
 - [ ] Fairness test: queue drains fully, retry count stays zero, oldest pending age does not continuously increase, small-customer events complete while whale backlog is still being processed
 - [ ] End-to-end delivery latency remains stable enough to support the assignment narrative in both suites
 

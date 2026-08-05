@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ARTIFACT_DIR="${ROOT_DIR}/.tmp/assignment-load-test"
+ARTIFACT_DIR="${ROOT_DIR}/.tmp/single-instance-load-test"
 REPORT_DIR="${ROOT_DIR}/loadtest/reports"
 BENCHMARK_DATABASE_NAME="${BENCHMARK_DATABASE_NAME:-webhook_notifier_benchmark}"
 POSTGRES_ADMIN_DSN="${POSTGRES_ADMIN_DSN:-postgres://postgres:password@127.0.0.1:15432/postgres?sslmode=disable}"
@@ -19,14 +19,14 @@ case "${SUITE_NAME}" in
     CUSTOMER_A_EVENTS=100
     CUSTOMER_B_EVENTS=20
     CUSTOMER_C_EVENTS=20
-    SCENARIO_NAME="assignment-smoke"
+    SCENARIO_NAME="single-instance-smoke"
     TARGET_RUNTIME_SECONDS=10
     ;;
   fairness)
     CUSTOMER_A_EVENTS=100000
     CUSTOMER_B_EVENTS=100
     CUSTOMER_C_EVENTS=100
-    SCENARIO_NAME="assignment-fairness"
+    SCENARIO_NAME="single-instance-fairness"
     TARGET_RUNTIME_SECONDS=60
     ;;
   *)
@@ -44,7 +44,7 @@ RECEIVER_LOG_PATH="${ARTIFACT_DIR}/mock-receiver.log"
 NOTIFIER_BINARY_PATH="${ARTIFACT_DIR}/notifier"
 RECEIVER_BINARY_PATH="${ARTIFACT_DIR}/mock-webhook-receiver"
 TIMESTAMP="$(date -u +"%Y%m%d-%H%M%S")"
-REPORT_PATH="${REPORT_DIR}/assignment-load-test-${SUITE_NAME}-${TIMESTAMP}.md"
+REPORT_PATH="${REPORT_DIR}/single-instance-load-test-${SUITE_NAME}-${TIMESTAMP}.md"
 SNAPSHOT_PATH="${ARTIFACT_DIR}/${SUITE_NAME}-queue-snapshots.tsv"
 
 RECEIVER_PROCESS_ID=""
@@ -53,7 +53,7 @@ BENCHMARK_STARTED_AT_EPOCH=""
 LAST_RUN_MAX_OLDEST_PENDING_EVENT_AGE_SECONDS="0"
 
 log() {
-  printf '[assignment-load-test] %s\n' "$1"
+  printf '[single-instance-load-test] %s\n' "$1"
 }
 
 sql_admin() {
@@ -279,7 +279,7 @@ write_report() {
   max_completed_count="$(awk -F $'\t' 'BEGIN{max=0} {if ($4 > max) max=$4} END{print max+0}' "${SNAPSHOT_PATH}")"
 
   {
-    printf '# Assignment Load Test Report\n\n'
+    printf '# Single-Instance Load Test Report\n\n'
     printf -- '- date: `%s`\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     printf -- '- suite: `%s`\n' "${SUITE_NAME}"
     printf -- '- scenario: `%s`\n' "${SCENARIO_NAME}"
@@ -291,7 +291,7 @@ write_report() {
     printf -- '- expected runtime target seconds: `%s`\n' "${TARGET_RUNTIME_SECONDS}"
     printf -- '- queue entry path: direct PostgreSQL preload\n'
     printf -- '- workload: `customer-a=%s`, `customer-b=%s`, `customer-c=%s`\n\n' "${CUSTOMER_A_EVENTS}" "${CUSTOMER_B_EVENTS}" "${CUSTOMER_C_EVENTS}"
-    printf 'This assignment load test intentionally measures the PostgreSQL-backed processing path only. It excludes notifier HTTP ingest benchmarking so the run stays simple and focused on queue claiming, scheduling, worker execution, retry behavior, and delivery completion.\n\n'
+    printf 'This single-instance load test intentionally measures the PostgreSQL-backed processing path only. It excludes notifier HTTP ingest benchmarking so the run stays simple and focused on queue claiming, scheduling, worker execution, retry behavior, and delivery completion.\n\n'
     printf '## Run Overview\n\n'
     printf -- '- total messages sent: `%s`\n' "${TOTAL_EVENT_COUNT}"
     printf -- '- total messages delivered: `%s`\n' "${max_completed_count}"

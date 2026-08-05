@@ -413,19 +413,19 @@ bash scripts/run-multi-instance-benchmark.sh
 
 Each per-instance section in the generated markdown report includes total jobs, total duration, jobs per second, and the maximum observed age of the oldest pending event during that run.
 
-Run the assignment-focused single-instance smoke load test:
+Run the single-instance smoke load test:
 
 ```bash
-bash scripts/run-assignment-load-test.sh smoke
+bash scripts/run-single-instance-load-test.sh smoke
 ```
 
-Run the assignment-focused single-instance fairness load test:
+Run the single-instance fairness load test:
 
 ```bash
-bash scripts/run-assignment-load-test.sh fairness
+bash scripts/run-single-instance-load-test.sh fairness
 ```
 
-Those assignment load tests preserve the existing multi-instance benchmark command and intentionally keep the measurement scope simple: direct PostgreSQL queue preload, one notifier instance, one mock receiver, and a markdown report centered on queue depth, end-to-end delivery latency, retry count, and oldest pending event age.
+Those single-instance load tests preserve the existing multi-instance benchmark command and intentionally keep the measurement scope simple: direct PostgreSQL queue preload, one notifier instance, one mock receiver, and a markdown report centered on queue depth, end-to-end delivery latency, retry count, and oldest pending event age.
 
 What this benchmark covers:
 
