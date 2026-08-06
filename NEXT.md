@@ -2,31 +2,34 @@
 
 ## Goal
 
-- [ ] Make the multi-instance load test finish quickly enough for normal local use and exit cleanly after all measurements are recorded
+- [ ] Split delivery execution and retry/dead-letter handling out of `runWorker` and into separate notifier files so each responsibility is easier to read and test
 
-## Runtime Target
+## Refactor Target
 
-- [ ] Keep the default `balanced` preset under `1` minute on a typical local machine
-- [ ] Keep the default workload only large enough to show throughput improvement and fairness behavior across `1`, `2`, and `4` instances
-- [ ] Treat the runtime target as a dataset-sizing guideline, not as an early-stop condition for the benchmark
-- [x] Ensure the benchmark always completes all configured instance-count measurements before exiting
-
-## Exit Behavior
-
-- [x] Make notifier shutdown progress visible after each measurement section is written
-- [x] Let the benchmark finish all instance measurements before exit
-- [x] Make the post-measurement shutdown path clear and graceful so the tool does not appear stuck after the benchmark is already complete
+- [ ] Keep runtime behavior unchanged for success, retry, and dead-letter flows
+- [ ] Make worker control flow easier to scan by moving branch-specific logic into named helper functions
+- [ ] Move extracted worker helper functions into separate files instead of keeping all delivery outcome branches in `worker.go`
+- [ ] Keep the split inside the current notifier process instead of introducing a new service or background retry component
+- [ ] Preserve the current PostgreSQL queue-driven retry model where failed jobs become available again through `available_at`
 
 ## Implementation Steps
 
-- [x] Tune the default `balanced` preset only by reducing workload size, not by adding a benchmark cutoff
-- [x] Improve notifier shutdown logging in `scripts/run-multi-instance-benchmark.sh` so users can see which process is still exiting
-- [x] Log which shutdown phase the script is in and which notifier process is still being waited on
-- [x] Preserve the existing report-writing behavior that prints report progress after each instance section is appended
-- [x] Keep the multi-instance comparison semantics unchanged while improving runtime ergonomics
+- [ ] Extract a function that performs one delivery attempt and returns the delivery result
+- [ ] Extract a function that handles successful delivery queue updates and metrics
+- [ ] Extract a function that handles retryable failure decisions, backoff calculation, and queue updates
+- [ ] Extract a function that handles permanent failure and dead-letter recording
+- [ ] Place the extracted worker helpers in one or more dedicated notifier files with names that match their responsibility
+- [ ] Keep helper names descriptive and aligned with repository naming guidance
+- [ ] Avoid changing public behavior, retry thresholds, or queue state transitions during the refactor
+
+## Tests
+
+- [ ] Keep the existing notifier retry and integration tests passing without changing their behavioral assertions
+- [ ] Add or update focused unit coverage only if the refactor introduces new branch logic that is hard to verify through existing tests
 
 ## Verification
 
-- [ ] Run the default `balanced` preset locally and confirm the full `1` / `2` / `4` comparison finishes in under `1` minute if practical
-- [ ] Confirm the script exits promptly after the final report link is printed
-- [ ] Confirm the report still contains the expected throughput and fairness sections for every instance count
+- [ ] Run notifier tests that cover success, retry, and dead-letter paths
+- [ ] Confirm the worker still marks successful jobs as delivered
+- [ ] Confirm retryable failures still update `available_at` and increment retry state as before
+- [ ] Confirm exhausted failures still land in the dead-letter path as before
