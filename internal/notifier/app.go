@@ -85,19 +85,7 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 		},
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", application.handleHealth)
-	mux.Handle("GET /metrics", metrics.Handler())
-	mux.HandleFunc("GET /stats", application.handleStats)
-	mux.HandleFunc("GET /registrations", application.handleRegistrations)
-	mux.HandleFunc("GET /dlq", application.handleDeadLetters)
-	mux.HandleFunc("POST /events", application.handleSingleEvent)
-	mux.HandleFunc("POST /events/batch", application.handleBatchEvents)
-
-	application.httpServer = &http.Server{
-		Addr:    applicationConfig.HTTPAddress,
-		Handler: mux,
-	}
+	application.httpServer = application.newHTTPServer()
 
 	return application, nil
 }
