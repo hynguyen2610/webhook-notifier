@@ -167,6 +167,24 @@ Common:
 
 ## Run The PostgreSQL-Backed Flow
 
+### Quick Local Stack
+
+For a one-command local setup, run:
+
+```bash
+scripts/start-local-stack.sh
+```
+
+This convenience script:
+
+- ensures the local PostgreSQL port-forward is available
+- bootstraps the notifier database and registration rows
+- starts the mock receiver, notifier, and mock event generator
+- prints endpoint and log locations
+- keeps running health checks until you stop it with `Ctrl+C`
+
+Use the manual flow below when you want to start components one by one or debug a specific startup step.
+
 Recommended run order:
 
 1. start PostgreSQL
