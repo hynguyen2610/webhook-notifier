@@ -25,8 +25,9 @@ deliveries in a dead-letter path.
 To keep the poller from outrunning workers indefinitely, the notifier also uses
 a bounded in-memory scheduled queue. By default, the poller stops claiming new
 PostgreSQL rows when scheduled queue depth reaches
-`workerCount * 10`. You can tune that bound with
-`NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR`.
+`workerCount * 10`. The default queue-limit factor is `10`, defined in
+configuration as the default for `NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR`.
+You can tune that bound by setting `NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR`.
 
 Explicitly supported event types:
 

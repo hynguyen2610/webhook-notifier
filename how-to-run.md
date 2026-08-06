@@ -31,6 +31,11 @@ Optional:
 
 - `jq` for prettier JSON output
 
+Notifier queue-bound default:
+
+- `NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR=10`
+- effective scheduled queue limit: `workerCount * 10`
+
 ## Recommended Local Setup
 
 The simplest first-run path is:
