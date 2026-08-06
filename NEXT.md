@@ -3,6 +3,7 @@
 ## Goal
 
 - [ ] Reach `100%` unit test coverage for the codebase, or document any truly unreachable lines that must be excluded intentionally
+- [ ] Bound in-memory scheduled queue growth so polling cannot outrun workers indefinitely
 
 ## Coverage Baseline
 
@@ -68,6 +69,18 @@
 - [ ] Cover notifier handler and worker error branches not already proven by integration tests
 - [x] Cover metrics and JSON response helper branches
 - [ ] Cover graceful shutdown and startup error paths where unit testing is feasible
+
+## Bounded Polling Queue
+
+- [ ] Add a scheduled queue limit so the poller does not keep enqueueing work when workers fall behind
+- [ ] Use `queueSize = workerCount * 10` as the bounded in-memory scheduled queue target
+- [ ] Add configuration wiring for the scheduled queue limit instead of leaving the multiplier as a magic number
+- [ ] Make the poller skip or delay new claims when `scheduler.QueueDepth()` is already at or above the limit
+- [ ] Keep claim behavior fair across customers after adding the queue bound
+- [ ] Expose the bounded queue behavior clearly in logs or metrics so overload is visible during local runs
+- [ ] Add unit tests that prove the poller stops claiming when scheduled queue depth reaches the limit
+- [ ] Add unit or integration coverage that proves polling resumes once workers drain enough scheduled work
+- [ ] Document the default queue bound and the reasoning in `README.md` or `how-to-run.md`
 
 ## Test Quality Rules
 
