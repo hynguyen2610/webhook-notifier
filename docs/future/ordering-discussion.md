@@ -1,336 +1,81 @@
-# Design Discussion: Event Ordering
+# Ordering Strategies
 
-## Purpose
+The current webhook notifier **does not guarantee per-customer ordering**.
 
-This document summarizes how event ordering is handled in the current implementation, why the chosen approach aligns with the assignment requirements, and how the design could evolve if stronger ordering guarantees were required.
+This decision is intentional. The assignment explicitly states that **out-of-order delivery is acceptable**, while also emphasizing **fairness across customers** and **high throughput**. Enforcing strict ordering would require serializing delivery for each customer, reducing concurrency and increasing latency for high-volume customers.
 
----
-
-# Assignment Requirement
-
-The assignment owner clarified that:
-
-> **Out-of-order delivery is acceptable.**
-
-This significantly influences the architecture.
-
-Instead of optimizing for strict ordering, the implementation prioritizes:
-
-- Fairness across customers
-- Horizontal scalability
-- Low delivery latency
-- High throughput
-- Simplicity
+If ordering becomes a future requirement, the following strategies could be considered.
 
 ---
 
-# Current Implementation
+# Strategy Comparison
 
-## Architecture
-
-```
-PostgreSQL Queue
-        │
-        ▼
-Round Robin Scheduler
-        │
-        ▼
-Worker Pool
-```
-
-The scheduler maintains fairness by selecting pending deliveries in a round-robin fashion across customers.
-
-Workers process scheduled jobs concurrently.
+| Strategy | Approach | Guarantee | Pros | Trade-offs | Why Not Chosen |
+|----------|----------|-----------|------|------------|----------------|
+| **Per-Customer Lock** | Pessimistic | Strict ordering | ✅ Simple to retrofit into the existing worker pool<br>✅ Easy to reason about | ❌ Slow deliveries block later events for the same customer<br>❌ Lower throughput | Ordering is not currently required, so the loss of concurrency is unnecessary. |
+| **Per-Customer Queue / Actor** | Pessimistic | Strict ordering | ✅ Clear ownership model<br>✅ No explicit locking<br>✅ Preserves ordering naturally | ❌ Additional queue lifecycle management | Good future evolution if ordering becomes mandatory, but introduces complexity not justified today. |
+| **Kafka-style Partitioning** | Pessimistic | Ordering within a partition | ✅ Industry-proven<br>✅ Horizontally scalable<br>✅ Preserves ordering per partition | ❌ Requires Kafka and partition management<br>❌ Hot customers may become partition bottlenecks | Current scale does not justify Kafka's operational complexity. |
+| **Sequence Numbers + Reorder Buffer** | Optimistic | Ordered output | ✅ Maximum parallelism<br>✅ Workers remain fully concurrent | ❌ Most complex solution<br>❌ Requires buffering and reorder logic | Ordering is optional, making this additional complexity unnecessary. |
+| **Version Numbers at Receiver** | Optimistic | Receiver reconstructs ordering | ✅ Sender remains simple<br>✅ Highly scalable | ❌ Requires receiver support<br>❌ Outside the notifier's control | The notifier cannot assume downstream systems implement version-aware processing. |
 
 ---
 
-# Does the system preserve ordering?
+# Ordering vs Throughput
 
-## Global Ordering
+Strict ordering requires processing each customer's events sequentially.
 
-❌ No.
+Example:
 
-Multiple workers execute concurrently, therefore deliveries can complete in different orders.
-
-Example
-
-```
+```text
 Customer A
 
-Event 1
-Event 2
+A1
+↓
+A2
+↓
+A3
 ```
 
-Worker execution
+If `A1` is delayed by a slow downstream webhook, `A2` and `A3` must wait.
 
-```
-Worker 1 → Event 2
-
-Worker 2 → Event 1
-```
-
-Result
-
-```
-Event 2 delivered first
-```
-
-This behavior is acceptable because strict ordering is not required.
+Horizontal scaling can increase the number of customers processed concurrently, but it **cannot increase throughput for a single ordered customer stream** because serialization is required to preserve ordering.
 
 ---
 
-## Per-Customer Ordering
+# Recommendation
 
-Best effort only.
+Given the assignment requirements, the current implementation intentionally prioritizes:
 
-The scheduler attempts to distribute work fairly across customers, but concurrent execution and retries may reorder deliveries.
+- ✅ Fair scheduling across customers
+- ✅ Concurrent worker execution
+- ✅ High throughput
+- ✅ Simpler operational model
 
----
+instead of:
 
-## Retry Ordering
+- ❌ Strict per-customer ordering
 
-Retries may also introduce reordering.
-
-Example
-
-```
-Event 1
-↓
-
-HTTP 500
-
-↓
-
-Retry after 30 seconds
-
-Meanwhile
-
-Event 2
-
-↓
-
-HTTP 200
-```
-
-Result
-
-```
-Event 2
-
-↓
-
-Event 1
-```
-
-This is an expected consequence of at-least-once delivery.
-
----
-
-# Why choose this design?
-
-Prioritizing throughput and fairness provides better overall system utilization.
-
-Strict ordering typically reduces concurrency because work must wait for previous events to finish.
-
-Current implementation favors:
-
-- Fairness
-- Throughput
-- Simplicity
-
-over
-
-- Strict ordering
-
----
-
-# If strict ordering became a requirement
-
-Several approaches are possible.
-
-## Option 1 — Single Worker per Customer
-
-```
-Customer Queue
-
-↓
-
-Dedicated Worker
-```
-
-Pros
-
-- Preserves ordering
-
-Cons
-
-- Poor utilization
-- Difficult to scale
-- Idle workers
-
----
-
-## Option 2 — Customer Affinity
-
-Hash customers to workers.
-
-```
-hash(customer_id)
-
-↓
-
-Worker
-```
-
-Pros
-
-- Ordering preserved per customer
-- Better utilization
-
-Cons
-
-- Hot customers create hot workers
-- Rebalancing is difficult
-
----
-
-## Option 3 — Kafka Partitioning
-
-Use customer_id as the Kafka partition key.
-
-```
-hash(customer_id)
-
-↓
-
-Kafka Partition
-
-↓
-
-Consumer
-```
-
-Pros
-
-- Ordering guaranteed within a partition
-- Horizontal scaling
-
-Cons
-
-- Hot partitions
-- Fairness becomes partition-local
-- One whale customer may saturate a partition
-
----
-
-# Fairness vs Ordering
-
-These goals are related but different.
-
-| Property | Current Implementation | Strict Ordering |
-|----------|------------------------|-----------------|
-| Fairness | ✅ | Depends |
-| Throughput | High | Lower |
-| Parallelism | High | Lower |
-| Latency | Low | Higher |
-| Ordering | Best effort | Guaranteed |
-
----
-
-# Kafka Considerations
-
-Kafka naturally distributes work using partitions.
-
-```
-Producer
-
-↓
-
-Kafka
-
-↓
-
-Consumer Group
-```
-
-Ordering is guaranteed only **within a partition**.
-
-If partitioned by customer:
-
-```
-Customer A
-
-↓
-
-Partition 5
-```
-
-all Customer A events remain ordered.
-
-However:
-
-- one large customer may create a hot partition,
-- fairness is no longer global,
-- scheduling decisions become local to each partition.
-
-Application-level scheduling may still be required if fairness is a stronger requirement than ordering.
-
----
-
-# Why PostgreSQL Queue was chosen
-
-For this MVP, PostgreSQL provides several advantages.
-
-- Simpler architecture
-- Easier debugging
-- Easier testing
-- Global visibility of pending deliveries
-- Scheduler can implement fairness across all customers
-
-The expected workload does not justify the operational complexity of Kafka.
-
-Kafka would become attractive when queue throughput or database write capacity becomes the primary scalability bottleneck.
+This aligns with the stated requirement that out-of-order delivery is acceptable while ensuring that large customers cannot monopolize processing.
 
 ---
 
 # Future Evolution
 
-As throughput requirements grow, the architecture could evolve incrementally.
+If ordering becomes a requirement, the preferred evolution would be:
 
-```
-Current PostgreSQL Queue
-
-↓
-
-Multiple Worker Pods
-
-↓
-
-Leader Election
-
-↓
-
-Worker Autoscaling
-
-↓
-
-Database Sharding
-
-↓
-
-Kafka Queue
-```
-
-The scheduler would continue to enforce fairness unless requirements changed to prioritize throughput over global scheduling.
+1. **Per-Customer Queue (Actor Model)** – Best balance between simplicity, maintainability, and scalability.
+2. **Per-Customer Lock** – Smallest change to the existing architecture.
+3. **Kafka-style Partitioning** – Preferred for very large-scale deployments requiring durable event streaming.
+4. **Sequence Numbers + Reorder Buffer** – Highest throughput, but also the highest implementation complexity.
 
 ---
 
-# Conclusion
+# Summary
 
-The implementation intentionally does **not** guarantee strict ordering because:
-
-- the assignment explicitly allows out-of-order delivery,
-- concurrent processing significantly improves throughput,
-- fairness across customers is considered more valuable than preserving event order.
-
-If future requirements changed, ordering could be strengthened using customer affinity or Kafka partitioning, with the trade-off of reduced scheduling flexibility and lower parallelism.
+| Requirement | Recommended Strategy |
+|-------------|----------------------|
+| Current assignment | ✅ Fair scheduling with concurrent workers |
+| Strict ordering with minimal changes | ✅ Per-Customer Lock |
+| Strict ordering with clean architecture | ✅ Per-Customer Queue / Actor |
+| Massive-scale event streaming | ✅ Kafka-style Partitioning |
+| Maximum throughput with ordering | ✅ Sequence Numbers + Reorder Buffer |
