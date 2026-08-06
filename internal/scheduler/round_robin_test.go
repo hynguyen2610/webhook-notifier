@@ -69,7 +69,7 @@ func newJob(customerID string, eventID string) events.DeliveryJob {
 			EventID:      eventID,
 			CustomerID:   customerID,
 			SubscriberID: "subscriber-1",
-			EventType:    "subscriber.updated",
+			EventType:    events.SubscriberCreatedEventType,
 			OccurredAt:   time.Now().UTC(),
 		},
 		WebhookURL: "https://example.com/webhook",

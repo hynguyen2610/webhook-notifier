@@ -426,10 +426,10 @@ Run the PostgreSQL-backed multi-instance benchmark from the repository root:
 bash scripts/run-multi-instance-benchmark.sh
 ```
 
-The default `balanced` preset targets a shorter local run while preserving the same `1`, `2`, and `4` instance comparison shape. Use the old heavier workload with:
+The default `balanced` preset targets a shorter local run while preserving the same `1`, `2`, and `4` instance comparison shape. Use the heavier comparison workload with:
 
 ```bash
-bash scripts/run-multi-instance-benchmark.sh legacy-medium
+bash scripts/run-multi-instance-benchmark.sh heavy
 ```
 
 If notifier shutdown is slow on your machine, you can adjust the post-measurement graceful-exit wait with `NOTIFIER_STOP_TIMEOUT_SECONDS` (default: `8`).
@@ -468,7 +468,7 @@ What this benchmark does not cover:
 Latest local result captured on `2026-08-03`:
 
 - command: `bash scripts/run-multi-instance-benchmark.sh`
-- preset: `legacy-medium`
+- preset: `heavy`
 - scenario: `two-whales-5000-two-non-whales-100`
 - report: `loadtest/reports/multi-instance-benchmark-20260803-235517.md`
 - per-instance worker count: `4`

@@ -2,60 +2,33 @@
 
 ## Goal
 
-- [x] Clearly support these three subscriber event types across the system:
-- [x] `subscriber.created`
-- [x] `subscriber.added_to_segment`
-- [x] `subscriber.unsubscribed`
+- [x] Clean up legacy or drifted event-type and benchmark references so code, scripts, and docs match the current supported contract
 
-## Contract Decision
+## Legacy Benchmark Preset Review
 
-- [x] Keep event type acceptance open-ended for any non-empty value
-- [x] Define `subscriber.created`, `subscriber.added_to_segment`, and `subscriber.unsubscribed` as explicitly supported event types in code and docs
-- [x] Confirm that existing example or benchmark values such as `subscriber.updated` and `subscriber.deleted` remain allowed but are not part of the explicitly supported set
+- [x] Decide whether the `legacy-medium` preset in `scripts/run-multi-instance-benchmark.sh` should be kept, renamed, or removed
+- [x] If the preset is kept, document why it remains intentionally legacy
+- [x] If the preset is renamed or removed, update `README.md` and `docs/spec/multi-instance-load-test.md`
 
-## Notifier Changes
+## Event Type Drift Cleanup
 
-- [x] Ensure notifier ingest accepts the three supported event types
-- [x] Ensure outbound delivery preserves the incoming event type unchanged
-- [x] Confirm retry, dead-letter, queue, and fairness behavior remain event-type agnostic
+- [x] Review benchmark and load-test scripts that still hard-code `subscriber.updated`
+- [x] Decide whether those script event types should switch to one of the explicitly supported event types
+- [x] If benchmark-only event types remain, document clearly that they are allowed but not part of the explicitly supported set
+- [x] Update scripts to avoid accidental drift between documented supported event types and generated benchmark traffic
 
-## Mock Event Generator Changes
+## Code And Test Consistency
 
-- [x] Ensure `POST /generate` can create `subscriber.created`
-- [x] Ensure `POST /generate` can create `subscriber.added_to_segment`
-- [x] Ensure `POST /generate` can create `subscriber.unsubscribed`
-- [x] Update generator defaults, scenarios, and examples so event types are intentional and aligned with the supported set
+- [x] Review remaining raw event-type string literals in tests and helper code
+- [x] Replace raw literals with shared event-type constants where that improves consistency
+- [x] Keep intentionally non-supported example values explicit where they are useful to test open-ended acceptance
 
-## Mock Receiver Changes
+## Documentation Cleanup
 
-- [x] Confirm receiver statistics still count deliveries correctly by event type
-- [x] Confirm last-event capture works correctly for all three supported event types
-
-## Test Coverage
-
-- [x] Add unit tests for open-ended event-type acceptance behavior where useful
-- [x] Add notifier integration coverage for `subscriber.created`
-- [x] Add notifier integration coverage for `subscriber.added_to_segment`
-- [x] Add notifier integration coverage for `subscriber.unsubscribed`
-- [x] Add generator handler coverage for accepted supported event types
-- [x] Confirm receiver tests still verify per-type statistics behavior
-
-## Documentation
-
-- [x] Update `README.md` so supported event types are explicit
-- [x] Update [docs/tools/mock-event-generator.md](/Users/hdnguyen/Documents/dev/go/webhook-notifier/docs/tools/mock-event-generator.md) examples to reflect the supported set
-- [x] Update [docs/plan/subscriber-event-type-expansion-checklist.md](/Users/hdnguyen/Documents/dev/go/webhook-notifier/docs/plan/subscriber-event-type-expansion-checklist.md) as implementation progresses
-- [x] Clarify that the system accepts open-ended non-empty event types while explicitly documenting the three supported types
+- [x] Make sure benchmark and load-test docs do not accidentally imply `subscriber.updated` is a supported primary example
+- [x] Make sure docs consistently distinguish between explicitly supported event types and merely allowed event types
 
 ## Verification
 
-- [x] Run focused package tests for notifier, generator, and receiver
-- [x] Verify end-to-end delivery succeeds for `subscriber.created`
-- [x] Verify end-to-end delivery succeeds for `subscriber.added_to_segment`
-- [x] Verify end-to-end delivery succeeds for `subscriber.unsubscribed`
-
-## Exit Criteria
-
-- [x] The three supported event types are explicit in code, tests, and docs
-- [x] Local tooling can generate all three supported event types
-- [x] Automated tests protect the supported event-type behavior
+- [x] Run focused tests for packages affected by cleanup changes
+- [x] Recheck benchmark and load-test docs and scripts for event-type consistency after cleanup

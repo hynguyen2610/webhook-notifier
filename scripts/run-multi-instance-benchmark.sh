@@ -24,7 +24,7 @@ case "${BENCHMARK_PRESET}" in
     CUSTOMER_D_EVENTS="${CUSTOMER_D_EVENTS:-100}"
     SCENARIO_NAME="${SCENARIO_NAME:-two-whales-3500-two-non-whales-100}"
     ;;
-  legacy-medium)
+  heavy)
     CUSTOMER_A_EVENTS="${CUSTOMER_A_EVENTS:-5000}"
     CUSTOMER_B_EVENTS="${CUSTOMER_B_EVENTS:-5000}"
     CUSTOMER_C_EVENTS="${CUSTOMER_C_EVENTS:-100}"
@@ -39,7 +39,7 @@ case "${BENCHMARK_PRESET}" in
     SCENARIO_NAME="${SCENARIO_NAME:-two-medium-100-two-non-whales-20}"
     ;;
   *)
-    printf 'usage: %s [balanced|legacy-medium|smoke]\n' "$0" >&2
+    printf 'usage: %s [balanced|heavy|smoke]\n' "$0" >&2
     exit 1
     ;;
 esac
@@ -278,7 +278,7 @@ SELECT
   'customer-a-event-' || sequence_number,
   'customer-a',
   'subscriber-customer-a-' || sequence_number,
-  'subscriber.updated',
+  'subscriber.created',
   TIMESTAMPTZ '${created_at}',
   '${RECEIVER_BASE_URL}/webhook/customer-a',
   'pending',
@@ -296,7 +296,7 @@ SELECT
   'customer-b-event-' || sequence_number,
   'customer-b',
   'subscriber-customer-b-' || sequence_number,
-  'subscriber.updated',
+  'subscriber.created',
   TIMESTAMPTZ '${created_at}',
   '${RECEIVER_BASE_URL}/webhook/customer-b',
   'pending',
@@ -314,7 +314,7 @@ SELECT
   'customer-c-event-' || sequence_number,
   'customer-c',
   'subscriber-customer-c-' || sequence_number,
-  'subscriber.updated',
+  'subscriber.created',
   TIMESTAMPTZ '${created_at}',
   '${RECEIVER_BASE_URL}/webhook/customer-c',
   'pending',
@@ -332,7 +332,7 @@ SELECT
   'customer-d-event-' || sequence_number,
   'customer-d',
   'subscriber-customer-d-' || sequence_number,
-  'subscriber.updated',
+  'subscriber.created',
   TIMESTAMPTZ '${created_at}',
   '${RECEIVER_BASE_URL}/webhook/customer-d',
   'pending',

@@ -92,7 +92,7 @@ The benchmark should always complete all configured instance-count measurements.
 The benchmark may also expose:
 
 * a lighter smoke preset for script sanity checks
-* a heavier legacy preset for deeper local comparison runs
+* a heavier optional preset for deeper local comparison runs
 
 Those presets are secondary to the main `1` / `2` / `4` comparison.
 

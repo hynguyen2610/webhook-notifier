@@ -178,7 +178,7 @@ INSERT INTO webhook_delivery_queue (
   event_id, customer_id, subscriber_id, event_type, occurred_at, webhook_url,
   status, available_at, retry_count, created_at, updated_at
 )
-SELECT 'customer-a-event-' || sequence_number, 'customer-a', 'subscriber-customer-a-' || sequence_number, 'subscriber.updated',
+SELECT 'customer-a-event-' || sequence_number, 'customer-a', 'subscriber-customer-a-' || sequence_number, 'subscriber.created',
   TIMESTAMPTZ '${created_at}', '${RECEIVER_BASE_URL}/webhook/customer-a', 'pending', TIMESTAMPTZ '${created_at}', 0, TIMESTAMPTZ '${created_at}', TIMESTAMPTZ '${created_at}'
 FROM generate_series(1, ${CUSTOMER_A_EVENTS}) AS sequence_number;
 
@@ -186,7 +186,7 @@ INSERT INTO webhook_delivery_queue (
   event_id, customer_id, subscriber_id, event_type, occurred_at, webhook_url,
   status, available_at, retry_count, created_at, updated_at
 )
-SELECT 'customer-b-event-' || sequence_number, 'customer-b', 'subscriber-customer-b-' || sequence_number, 'subscriber.updated',
+SELECT 'customer-b-event-' || sequence_number, 'customer-b', 'subscriber-customer-b-' || sequence_number, 'subscriber.created',
   TIMESTAMPTZ '${created_at}', '${RECEIVER_BASE_URL}/webhook/customer-b', 'pending', TIMESTAMPTZ '${created_at}', 0, TIMESTAMPTZ '${created_at}', TIMESTAMPTZ '${created_at}'
 FROM generate_series(1, ${CUSTOMER_B_EVENTS}) AS sequence_number;
 
@@ -194,7 +194,7 @@ INSERT INTO webhook_delivery_queue (
   event_id, customer_id, subscriber_id, event_type, occurred_at, webhook_url,
   status, available_at, retry_count, created_at, updated_at
 )
-SELECT 'customer-c-event-' || sequence_number, 'customer-c', 'subscriber-customer-c-' || sequence_number, 'subscriber.updated',
+SELECT 'customer-c-event-' || sequence_number, 'customer-c', 'subscriber-customer-c-' || sequence_number, 'subscriber.created',
   TIMESTAMPTZ '${created_at}', '${RECEIVER_BASE_URL}/webhook/customer-c', 'pending', TIMESTAMPTZ '${created_at}', 0, TIMESTAMPTZ '${created_at}', TIMESTAMPTZ '${created_at}'
 FROM generate_series(1, ${CUSTOMER_C_EVENTS}) AS sequence_number;
 "
