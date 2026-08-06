@@ -14,51 +14,73 @@ import (
 	"webhook-notifier/internal/events"
 )
 
-func TestHandleWebhookTracksPerCustomerStatistics(t *testing.T) {
-	// Input: a webhook request for customer-a with a decodable subscriber.created payload.
-	// Outcome: receiver stats show one successful delivery, one eventType count, and no validation mismatches.
-	application := NewApplication(config.MockReceiverConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	subscriberEvent := events.SubscriberEvent{
-		EventID:      "event-001",
-		CustomerID:   "customer-a",
-		SubscriberID: "subscriber-001",
-		EventType:    "subscriber.created",
-		OccurredAt:   time.Date(2026, time.August, 2, 10, 0, 0, 0, time.UTC),
-	}
-	requestBody, marshalError := json.Marshal(subscriberEvent)
-	if marshalError != nil {
-		t.Fatalf("marshal request body: %v", marshalError)
-	}
-
-	request := httptest.NewRequest(http.MethodPost, "/webhook/customer-a", bytes.NewReader(requestBody))
-	request.SetPathValue("customerId", "customer-a")
-	responseRecorder := httptest.NewRecorder()
-
-	application.handleWebhook(responseRecorder, request)
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", responseRecorder.Code)
+func TestHandleWebhookTracksPerCustomerStatisticsForSupportedEventTypes(t *testing.T) {
+	testCases := []struct {
+		name      string
+		eventType string
+	}{
+		{
+			name:      "input subscriber.created expects stats count for subscriber.created",
+			eventType: events.SubscriberCreatedEventType,
+		},
+		{
+			name:      "input subscriber.added_to_segment expects stats count for subscriber.added_to_segment",
+			eventType: events.SubscriberAddedToSegmentEventType,
+		},
+		{
+			name:      "input subscriber.unsubscribed expects stats count for subscriber.unsubscribed",
+			eventType: events.SubscriberUnsubscribedEventType,
+		},
 	}
 
-	customerStatistic := application.snapshotCustomerStatistic("customer-a")
-	if customerStatistic.Received != 1 {
-		t.Fatalf("expected received count 1, got %d", customerStatistic.Received)
-	}
-	if customerStatistic.Success != 1 {
-		t.Fatalf("expected success count 1, got %d", customerStatistic.Success)
-	}
-	if customerStatistic.PayloadDecodeFailures != 0 {
-		t.Fatalf("expected zero payload decode failures, got %d", customerStatistic.PayloadDecodeFailures)
-	}
-	if customerStatistic.PathPayloadCustomerMismatches != 0 {
-		t.Fatalf("expected zero customer mismatches, got %d", customerStatistic.PathPayloadCustomerMismatches)
-	}
-	if customerStatistic.EventTypeCounts["subscriber.created"] != 1 {
-		t.Fatalf("expected subscriber.created count 1, got %d", customerStatistic.EventTypeCounts["subscriber.created"])
-	}
-	if customerStatistic.LastEvent == nil || customerStatistic.LastEvent.CustomerID != "customer-a" {
-		t.Fatalf("expected last event for customer-a, got %#v", customerStatistic.LastEvent)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			// Input: a webhook request for customer-a with one supported event type payload.
+			// Outcome: receiver stats show one successful delivery, one eventType count, and the same event type in the last event snapshot.
+			application := NewApplication(config.MockReceiverConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+			subscriberEvent := events.SubscriberEvent{
+				EventID:      "event-001",
+				CustomerID:   "customer-a",
+				SubscriberID: "subscriber-001",
+				EventType:    testCase.eventType,
+				OccurredAt:   time.Date(2026, time.August, 2, 10, 0, 0, 0, time.UTC),
+			}
+			requestBody, marshalError := json.Marshal(subscriberEvent)
+			if marshalError != nil {
+				t.Fatalf("marshal request body: %v", marshalError)
+			}
+
+			request := httptest.NewRequest(http.MethodPost, "/webhook/customer-a", bytes.NewReader(requestBody))
+			request.SetPathValue("customerId", "customer-a")
+			responseRecorder := httptest.NewRecorder()
+
+			application.handleWebhook(responseRecorder, request)
+
+			if responseRecorder.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", responseRecorder.Code)
+			}
+
+			customerStatistic := application.snapshotCustomerStatistic("customer-a")
+			if customerStatistic.Received != 1 {
+				t.Fatalf("expected received count 1, got %d", customerStatistic.Received)
+			}
+			if customerStatistic.Success != 1 {
+				t.Fatalf("expected success count 1, got %d", customerStatistic.Success)
+			}
+			if customerStatistic.PayloadDecodeFailures != 0 {
+				t.Fatalf("expected zero payload decode failures, got %d", customerStatistic.PayloadDecodeFailures)
+			}
+			if customerStatistic.PathPayloadCustomerMismatches != 0 {
+				t.Fatalf("expected zero customer mismatches, got %d", customerStatistic.PathPayloadCustomerMismatches)
+			}
+			if customerStatistic.EventTypeCounts[testCase.eventType] != 1 {
+				t.Fatalf("expected %s count 1, got %d", testCase.eventType, customerStatistic.EventTypeCounts[testCase.eventType])
+			}
+			if customerStatistic.LastEvent == nil || customerStatistic.LastEvent.EventType != testCase.eventType {
+				t.Fatalf("expected last event type %s, got %#v", testCase.eventType, customerStatistic.LastEvent)
+			}
+		})
 	}
 }
 

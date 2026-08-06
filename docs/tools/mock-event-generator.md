@@ -71,6 +71,15 @@ Each generated event should contain at minimum:
 
 Additional fields may be added as required.
 
+The generator explicitly supports these event types in examples and mixed
+scenarios:
+
+- `subscriber.created`
+- `subscriber.added_to_segment`
+- `subscriber.unsubscribed`
+
+The generator still accepts other non-empty `eventType` values when requested.
+
 ---
 
 # Configuration
@@ -98,7 +107,7 @@ Request
 ```json
 {
   "customerId": "customer-a",
-  "eventType": "subscriber.created",
+  "eventType": "subscriber.added_to_segment",
   "count": 100
 }
 ```
@@ -122,7 +131,7 @@ Example:
 ```bash
 curl -X POST http://localhost:28081/generate \
   -H 'Content-Type: application/json' \
-  -d '{"customerId":"customer-a","eventType":"subscriber.created","count":100}'
+  -d '{"customerId":"customer-a","eventType":"subscriber.unsubscribed","count":100}'
 ```
 
 ---
@@ -200,6 +209,10 @@ POST
 ```
 
 Produces multiple customers with randomized event rates.
+
+By default, the mixed scenario rotates across the explicitly supported event
+types: `subscriber.created`, `subscriber.added_to_segment`, and
+`subscriber.unsubscribed`.
 
 When `GENERATOR_RANDOM_SEED` is set, the generator produces the same event IDs,
 subscriber IDs, and timestamps for the same request sequence, which makes

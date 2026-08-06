@@ -25,7 +25,7 @@ func (application *Application) handleGenerate(responseWriter http.ResponseWrite
 		generateRequest.Count = 1
 	}
 	if generateRequest.EventType == "" {
-		generateRequest.EventType = "subscriber.created"
+		generateRequest.EventType = events.SubscriberCreatedEventType
 	}
 	application.logger.Info(
 		"received generate request",
@@ -89,7 +89,7 @@ func (application *Application) handleGenerateBulk(responseWriter http.ResponseW
 	for customerIndex := 0; customerIndex < bulkRequest.Customers; customerIndex++ {
 		customerID := fmt.Sprintf("customer-%02d", customerIndex+1)
 		for eventIndex := 0; eventIndex < bulkRequest.EventsPerCustomer; eventIndex++ {
-			eventsBatch = append(eventsBatch, application.newEvent(customerID, "subscriber.updated", eventIndex))
+			eventsBatch = append(eventsBatch, application.newEvent(customerID, events.SubscriberCreatedEventType, eventIndex))
 		}
 	}
 
@@ -118,12 +118,12 @@ func (application *Application) handleWhaleScenario(responseWriter http.Response
 	application.logger.Info("received whale scenario request")
 	eventsBatch := make([]events.SubscriberEvent, 0, 2200)
 	for eventIndex := 0; eventIndex < 2000; eventIndex++ {
-		eventsBatch = append(eventsBatch, application.newEvent("customer-a", "subscriber.updated", eventIndex))
+		eventsBatch = append(eventsBatch, application.newEvent("customer-a", events.SubscriberCreatedEventType, eventIndex))
 	}
 	for customerIndex := 0; customerIndex < 2; customerIndex++ {
 		customerID := fmt.Sprintf("customer-%c", 'b'+customerIndex)
 		for eventIndex := 0; eventIndex < 100; eventIndex++ {
-			eventsBatch = append(eventsBatch, application.newEvent(customerID, "subscriber.updated", eventIndex))
+			eventsBatch = append(eventsBatch, application.newEvent(customerID, events.SubscriberCreatedEventType, eventIndex))
 		}
 	}
 
@@ -144,8 +144,7 @@ func (application *Application) handleMixedScenario(responseWriter http.Response
 		customerID := fmt.Sprintf("customer-%02d", customerIndex+1)
 		eventCount := 25 + application.randomSource.Intn(75)
 		for eventIndex := 0; eventIndex < eventCount; eventIndex++ {
-			eventTypes := []string{"subscriber.created", "subscriber.updated", "subscriber.deleted", "subscriber.unsubscribed"}
-			eventType := eventTypes[application.randomSource.Intn(len(eventTypes))]
+			eventType := events.SupportedSubscriberEventTypes[application.randomSource.Intn(len(events.SupportedSubscriberEventTypes))]
 			eventsBatch = append(eventsBatch, application.newEvent(customerID, eventType, eventIndex))
 		}
 	}

@@ -26,8 +26,8 @@ func TestNewEventUsesDeterministicSeededData(t *testing.T) {
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 
-	firstEvent := firstApplication.newEvent("customer-a", "subscriber.created", 0)
-	secondEvent := secondApplication.newEvent("customer-a", "subscriber.created", 0)
+	firstEvent := firstApplication.newEvent("customer-a", events.SubscriberCreatedEventType, 0)
+	secondEvent := secondApplication.newEvent("customer-a", events.SubscriberCreatedEventType, 0)
 
 	if firstEvent != secondEvent {
 		t.Fatalf("expected deterministic event output, got %#v and %#v", firstEvent, secondEvent)
@@ -83,47 +83,76 @@ func TestHandleGenerateBulkRejectsNegativeEventsPerCustomer(t *testing.T) {
 	}
 }
 
-func TestHandleGeneratePublishesDeterministicEventsToNotifier(t *testing.T) {
-	// Input: a seeded generate request for customer-a with count 2 and a notifier batch endpoint.
-	// Outcome: the handler forwards two deterministic events to the notifier batch endpoint and returns 202.
-	var publishedEvents []events.SubscriberEvent
-	notifierServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/events/batch" {
-			t.Fatalf("expected /events/batch path, got %s", request.URL.Path)
-		}
-		if decodeError := json.NewDecoder(request.Body).Decode(&publishedEvents); decodeError != nil {
-			t.Fatalf("decode published events: %v", decodeError)
-		}
-		responseWriter.WriteHeader(http.StatusAccepted)
-	}))
-	defer notifierServer.Close()
-
-	application := NewApplication(
-		config.MockGeneratorConfig{
-			NotifierBaseURL: notifierServer.URL,
-			RandomSeed:      7,
+func TestHandleGeneratePublishesSupportedEventTypesToNotifier(t *testing.T) {
+	testCases := []struct {
+		name      string
+		eventType string
+	}{
+		{
+			name:      "input subscriber.created expects subscriber.created published",
+			eventType: events.SubscriberCreatedEventType,
 		},
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-	)
+		{
+			name:      "input subscriber.added_to_segment expects subscriber.added_to_segment published",
+			eventType: events.SubscriberAddedToSegmentEventType,
+		},
+		{
+			name:      "input subscriber.unsubscribed expects subscriber.unsubscribed published",
+			eventType: events.SubscriberUnsubscribedEventType,
+		},
+	}
 
-	request := httptest.NewRequest(http.MethodPost, "/generate", bytes.NewBufferString(`{"customerId":"customer-a","eventType":"subscriber.created","count":2}`))
-	responseRecorder := httptest.NewRecorder()
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			// Input: a seeded generate request for one supported event type with count 2 and a notifier batch endpoint.
+			// Outcome: the handler forwards two deterministic events with the requested event type and returns 202.
+			var publishedEvents []events.SubscriberEvent
+			notifierServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+				if request.URL.Path != "/events/batch" {
+					t.Fatalf("expected /events/batch path, got %s", request.URL.Path)
+				}
+				if decodeError := json.NewDecoder(request.Body).Decode(&publishedEvents); decodeError != nil {
+					t.Fatalf("decode published events: %v", decodeError)
+				}
+				responseWriter.WriteHeader(http.StatusAccepted)
+			}))
+			defer notifierServer.Close()
 
-	application.handleGenerate(responseRecorder, request)
+			application := NewApplication(
+				config.MockGeneratorConfig{
+					NotifierBaseURL: notifierServer.URL,
+					RandomSeed:      7,
+				},
+				slog.New(slog.NewTextHandler(io.Discard, nil)),
+			)
 
-	if responseRecorder.Code != http.StatusAccepted {
-		t.Fatalf("expected status 202, got %d", responseRecorder.Code)
-	}
-	if len(publishedEvents) != 2 {
-		t.Fatalf("expected 2 published events, got %d", len(publishedEvents))
-	}
-	if publishedEvents[0].EventID != "seed-7-000000-000000" {
-		t.Fatalf("expected first deterministic event ID, got %s", publishedEvents[0].EventID)
-	}
-	if publishedEvents[1].EventID != "seed-7-000001-000001" {
-		t.Fatalf("expected second deterministic event ID, got %s", publishedEvents[1].EventID)
-	}
-	if !publishedEvents[1].OccurredAt.After(publishedEvents[0].OccurredAt) {
-		t.Fatalf("expected second event timestamp after first, got %s and %s", publishedEvents[0].OccurredAt, publishedEvents[1].OccurredAt)
+			request := httptest.NewRequest(
+				http.MethodPost,
+				"/generate",
+				bytes.NewBufferString(`{"customerId":"customer-a","eventType":"`+testCase.eventType+`","count":2}`),
+			)
+			responseRecorder := httptest.NewRecorder()
+
+			application.handleGenerate(responseRecorder, request)
+
+			if responseRecorder.Code != http.StatusAccepted {
+				t.Fatalf("expected status 202, got %d", responseRecorder.Code)
+			}
+			if len(publishedEvents) != 2 {
+				t.Fatalf("expected 2 published events, got %d", len(publishedEvents))
+			}
+			if publishedEvents[0].EventType != testCase.eventType || publishedEvents[1].EventType != testCase.eventType {
+				t.Fatalf("expected published event type %s, got %#v", testCase.eventType, publishedEvents)
+			}
+			if publishedEvents[0].EventID != "seed-7-000000-000000" {
+				t.Fatalf("expected first deterministic event ID, got %s", publishedEvents[0].EventID)
+			}
+			if publishedEvents[1].EventID != "seed-7-000001-000001" {
+				t.Fatalf("expected second deterministic event ID, got %s", publishedEvents[1].EventID)
+			}
+			if !publishedEvents[1].OccurredAt.After(publishedEvents[0].OccurredAt) {
+				t.Fatalf("expected second event timestamp after first, got %s and %s", publishedEvents[0].OccurredAt, publishedEvents[1].OccurredAt)
+			}
+		})
 	}
 }

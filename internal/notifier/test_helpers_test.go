@@ -168,11 +168,15 @@ func waitForCondition(t *testing.T, description string, condition func() bool) {
 }
 
 func newTestEvent(customerID string, eventID string) events.SubscriberEvent {
+	return newTestEventWithType(customerID, eventID, events.SubscriberCreatedEventType)
+}
+
+func newTestEventWithType(customerID string, eventID string, eventType string) events.SubscriberEvent {
 	return events.SubscriberEvent{
 		EventID:      eventID,
 		CustomerID:   customerID,
 		SubscriberID: "subscriber-" + eventID,
-		EventType:    "subscriber.created",
+		EventType:    eventType,
 		OccurredAt:   time.Date(2026, time.August, 3, 9, 0, 0, 0, time.UTC),
 	}
 }

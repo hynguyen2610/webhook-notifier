@@ -13,6 +13,16 @@ Current runtime flow:
 7. failed deliveries retry with exponential backoff
 8. exhausted deliveries are marked as dead-lettered in PostgreSQL
 
+Explicitly supported subscriber event types:
+
+- `subscriber.created`
+- `subscriber.added_to_segment`
+- `subscriber.unsubscribed`
+
+The notifier currently accepts any non-empty `eventType` string and preserves it
+through queueing and delivery. The three values above are the documented and
+tested event types for local tooling and examples.
+
 ## Current Status
 
 What is implemented now:
@@ -260,10 +270,15 @@ curl -sS -X POST http://localhost:28081/generate \
   -H 'Content-Type: application/json' \
   -d '{
     "customerId": "customer-a",
-    "eventType": "subscriber.created",
+    "eventType": "subscriber.added_to_segment",
     "count": 5
   }'
 ```
+
+Other explicitly supported example values:
+
+- `subscriber.created`
+- `subscriber.unsubscribed`
 
 Bulk scenario:
 
@@ -397,7 +412,7 @@ curl -sS -X POST http://localhost:28080/events/batch \
       "eventId": "event-1",
       "customerId": "customer-a",
       "subscriberId": "subscriber-001",
-      "eventType": "subscriber.created",
+      "eventType": "subscriber.unsubscribed",
       "occurredAt": "2026-08-02T10:00:00Z"
     }
   ]'
