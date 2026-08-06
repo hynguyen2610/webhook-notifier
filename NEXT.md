@@ -9,17 +9,17 @@
 - [ ] Keep the default `balanced` preset under `1` minute on a typical local machine
 - [ ] Keep the default workload only large enough to show throughput improvement and fairness behavior across `1`, `2`, and `4` instances
 - [ ] Treat the runtime target as a dataset-sizing guideline, not as an early-stop condition for the benchmark
-- [ ] Ensure the benchmark always completes all configured instance-count measurements before exiting
+- [x] Ensure the benchmark always completes all configured instance-count measurements before exiting
 
 ## Exit Behavior
 
 - [x] Make notifier shutdown progress visible after each measurement section is written
-- [ ] Let the benchmark finish all instance measurements before exit
+- [x] Let the benchmark finish all instance measurements before exit
 - [x] Make the post-measurement shutdown path clear and graceful so the tool does not appear stuck after the benchmark is already complete
 
 ## Implementation Steps
 
-- [ ] Tune the default `balanced` preset only by reducing workload size, not by adding a benchmark cutoff
+- [x] Tune the default `balanced` preset only by reducing workload size, not by adding a benchmark cutoff
 - [x] Improve notifier shutdown logging in `scripts/run-multi-instance-benchmark.sh` so users can see which process is still exiting
 - [x] Log which shutdown phase the script is in and which notifier process is still being waited on
 - [x] Preserve the existing report-writing behavior that prints report progress after each instance section is appended
