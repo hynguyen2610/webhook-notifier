@@ -2,33 +2,73 @@
 
 ## Goal
 
-- [x] Clean up legacy or drifted event-type and benchmark references so code, scripts, and docs match the current supported contract
+- [ ] Refactor the documentation system so `README.md` becomes concise, high-signal, and structured around the highest-ROI project story
 
-## Legacy Benchmark Preset Review
+## README Target Structure
 
-- [x] Decide whether the `legacy-medium` preset in `scripts/run-multi-instance-benchmark.sh` should be kept, renamed, or removed
-- [x] If the preset is kept, document why it remains intentionally legacy
-- [x] If the preset is renamed or removed, update `README.md` and `docs/spec/multi-instance-load-test.md`
+- [ ] Restructure `README.md` to follow this exact top-level order:
+- [ ] `1. Overview`
+- [ ] `2. Assignment Challenges`
+- [ ] `3. Architecture`
+- [ ] `4. Design Decisions`
+- [ ] `5. Testing`
+- [ ] `6. Future Work`
+- [ ] Move supporting detail that is too long for the main README into appendix sections
 
-## Event Type Drift Cleanup
+## Assignment Challenges Section
 
-- [x] Review benchmark and load-test scripts that still hard-code `subscriber.updated`
-- [x] Decide whether those script event types should switch to one of the explicitly supported event types
-- [x] If benchmark-only event types remain, document clearly that they are allowed but not part of the explicitly supported set
-- [x] Update scripts to avoid accidental drift between documented supported event types and generated benchmark traffic
+- [ ] Present the three assignment challenges explicitly:
+- [ ] `Reliability`
+- [ ] `Fairness`
+- [ ] `Horizontal scalability`
+- [ ] For each challenge, add a short explanation of how the system addresses it
+- [ ] For each challenge, link to the most relevant code
+- [ ] For each challenge, link to the strongest available test or benchmark evidence when practical
+- [ ] Keep this section concise and focused on highest-ROI understanding
 
-## Code And Test Consistency
+## Architecture Section
 
-- [x] Review remaining raw event-type string literals in tests and helper code
-- [x] Replace raw literals with shared event-type constants where that improves consistency
-- [x] Keep intentionally non-supported example values explicit where they are useful to test open-ended acceptance
+- [ ] Summarize the runtime flow at a high level
+- [ ] Keep architecture explanation short in the main README
+- [ ] Link to deeper diagrams or supporting docs instead of duplicating large detail blocks
 
-## Documentation Cleanup
+## Design Decisions Section
 
-- [x] Make sure benchmark and load-test docs do not accidentally imply `subscriber.updated` is a supported primary example
-- [x] Make sure docs consistently distinguish between explicitly supported event types and merely allowed event types
+- [ ] Summarize the most important design decisions only
+- [ ] Link to ADRs or trade-off docs for deeper explanation
+- [ ] Avoid restating implementation details already covered better in code or appendix docs
+
+## Testing Section
+
+- [ ] Summarize the main automated test layers briefly
+- [ ] Point to the strongest evidence for delivery, retry, fairness, and PostgreSQL-backed behavior
+- [ ] Keep command examples minimal and useful
+
+## Future Work Section
+
+- [ ] Summarize the most important next improvements only
+- [ ] Link to deeper future-looking docs instead of expanding the README too much
+
+## Appendix Structure
+
+- [ ] Add or reorganize appendix material so it contains:
+- [ ] `A. Load Test Methodology`
+- [ ] `B. Load Test Results`
+- [ ] `C. Fairness Measurements`
+- [ ] `D. Architecture Trade-offs`
+- [ ] `E. Future Production Evolution`
+- [ ] Ensure appendix items either live in clearly linked README appendix sections or in linked docs with matching labels
+
+## Documentation Cleanup Rules
+
+- [ ] Remove or move setup detail that makes the README feel too long for first-pass reading
+- [ ] Keep the README optimized for fast project understanding rather than exhaustive operation notes
+- [ ] Preserve important local run commands, but move lower-priority detail to appendix or supporting docs where appropriate
+- [ ] Make sure links point to the most relevant existing docs before creating new duplication
 
 ## Verification
 
-- [x] Run focused tests for packages affected by cleanup changes
-- [x] Recheck benchmark and load-test docs and scripts for event-type consistency after cleanup
+- [ ] Confirm the README is substantially more concise than before
+- [ ] Confirm the README follows the requested section order
+- [ ] Confirm each assignment challenge has short solution context plus code or evidence links
+- [ ] Confirm appendix labels and linked supporting docs are easy to navigate
