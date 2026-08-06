@@ -154,6 +154,7 @@ More detail:
 
 - Future scalability: [docs/future/future_scalability.md](docs/future/future_scalability.md)
 - Future performance optimization: [docs/future/future_performance.md](docs/future/future_performance.md)
+- Future security and monitoring: [docs/future/future_security_and_monitoring.md](docs/future/future_security_and_monitoring.md)
 - Future scheduling discussion: [docs/future/future_scheduling.md](docs/future/future_scheduling.md)
 - Ordering discussion: [docs/future/ordering-discussion.md](docs/future/ordering-discussion.md)
 
@@ -186,5 +187,6 @@ More detail:
 
 - Future scalability: [docs/future/future_scalability.md](docs/future/future_scalability.md)
 - Future performance optimization: [docs/future/future_performance.md](docs/future/future_performance.md)
+- Future security and monitoring: [docs/future/future_security_and_monitoring.md](docs/future/future_security_and_monitoring.md)
 - Future scheduling: [docs/future/future_scheduling.md](docs/future/future_scheduling.md)
 - Ordering discussion: [docs/future/ordering-discussion.md](docs/future/ordering-discussion.md)
