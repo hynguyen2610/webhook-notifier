@@ -17,6 +17,7 @@ const (
 	defaultNotifierQueueClaimBatchSize       = 32
 	defaultNotifierQueuePollInterval         = 250 * time.Millisecond
 	defaultNotifierSchedulerBufferMultiplier = 4
+	defaultNotifierScheduledQueueLimitFactor = 10
 	defaultNotifierMetricsReportInterval     = 2 * time.Second
 	defaultNotifierShutdownTimeout           = 5 * time.Second
 
@@ -36,6 +37,7 @@ type NotifierConfig struct {
 	QueueClaimBatchSize       int
 	QueuePollInterval         time.Duration
 	SchedulerBufferMultiplier int
+	ScheduledQueueLimitFactor int
 	MetricsReportInterval     time.Duration
 	ShutdownTimeout           time.Duration
 	LogLevel                  string
@@ -58,6 +60,20 @@ type MockGeneratorConfig struct {
 	HTTPRequestTimeout   time.Duration
 	ShutdownTimeout      time.Duration
 	LogLevel             string
+}
+
+func (notifierConfig NotifierConfig) ScheduledQueueLimit() int {
+	workerCount := notifierConfig.WorkerCount
+	if workerCount <= 0 {
+		workerCount = 1
+	}
+
+	scheduledQueueLimitFactor := notifierConfig.ScheduledQueueLimitFactor
+	if scheduledQueueLimitFactor <= 0 {
+		scheduledQueueLimitFactor = defaultNotifierScheduledQueueLimitFactor
+	}
+
+	return workerCount * scheduledQueueLimitFactor
 }
 
 func LoadNotifierConfig() (NotifierConfig, error) {
@@ -96,6 +112,11 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 		return NotifierConfig{}, schedulerBufferMultiplierError
 	}
 
+	scheduledQueueLimitFactor, scheduledQueueLimitFactorError := parseIntEnvironment("NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR", defaultNotifierScheduledQueueLimitFactor)
+	if scheduledQueueLimitFactorError != nil {
+		return NotifierConfig{}, scheduledQueueLimitFactorError
+	}
+
 	metricsReportInterval, metricsReportIntervalError := parseDurationEnvironment("NOTIFIER_METRICS_REPORT_INTERVAL", defaultNotifierMetricsReportInterval)
 	if metricsReportIntervalError != nil {
 		return NotifierConfig{}, metricsReportIntervalError
@@ -120,6 +141,7 @@ func LoadNotifierConfig() (NotifierConfig, error) {
 		QueueClaimBatchSize:       queueClaimBatchSize,
 		QueuePollInterval:         queuePollInterval,
 		SchedulerBufferMultiplier: schedulerBufferMultiplier,
+		ScheduledQueueLimitFactor: scheduledQueueLimitFactor,
 		MetricsReportInterval:     metricsReportInterval,
 		ShutdownTimeout:           shutdownTimeout,
 		LogLevel:                  readEnvironment("NOTIFIER_LOG_LEVEL", "INFO"),

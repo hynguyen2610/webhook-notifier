@@ -40,6 +40,9 @@ func TestLoadNotifierConfigUsesDefaultsWhenEnvironmentIsUnset(t *testing.T) {
 	if notifierConfig.SchedulerBufferMultiplier != defaultNotifierSchedulerBufferMultiplier {
 		t.Fatalf("expected default scheduler buffer multiplier %d, got %d", defaultNotifierSchedulerBufferMultiplier, notifierConfig.SchedulerBufferMultiplier)
 	}
+	if notifierConfig.ScheduledQueueLimitFactor != defaultNotifierScheduledQueueLimitFactor {
+		t.Fatalf("expected default scheduled queue limit factor %d, got %d", defaultNotifierScheduledQueueLimitFactor, notifierConfig.ScheduledQueueLimitFactor)
+	}
 	if notifierConfig.MetricsReportInterval != defaultNotifierMetricsReportInterval {
 		t.Fatalf("expected default metrics interval %s, got %s", defaultNotifierMetricsReportInterval, notifierConfig.MetricsReportInterval)
 	}
@@ -65,6 +68,7 @@ func TestLoadNotifierConfigReadsOverrides(t *testing.T) {
 	t.Setenv("NOTIFIER_QUEUE_CLAIM_BATCH_SIZE", "44")
 	t.Setenv("NOTIFIER_QUEUE_POLL_INTERVAL", "150ms")
 	t.Setenv("NOTIFIER_SCHEDULER_BUFFER_MULTIPLIER", "8")
+	t.Setenv("NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR", "12")
 	t.Setenv("NOTIFIER_METRICS_REPORT_INTERVAL", "4s")
 	t.Setenv("NOTIFIER_SHUTDOWN_TIMEOUT", "11s")
 	t.Setenv("NOTIFIER_LOG_LEVEL", "DEBUG")
@@ -85,6 +89,7 @@ func TestLoadNotifierConfigReadsOverrides(t *testing.T) {
 		notifierConfig.QueueClaimBatchSize != 44 ||
 		notifierConfig.QueuePollInterval != 150*time.Millisecond ||
 		notifierConfig.SchedulerBufferMultiplier != 8 ||
+		notifierConfig.ScheduledQueueLimitFactor != 12 ||
 		notifierConfig.MetricsReportInterval != 4*time.Second ||
 		notifierConfig.ShutdownTimeout != 11*time.Second ||
 		notifierConfig.LogLevel != "DEBUG" ||
@@ -145,6 +150,11 @@ func TestLoadNotifierConfigRejectsParseFailures(t *testing.T) {
 		{
 			name:                "input invalid scheduler buffer multiplier expects parse error",
 			environmentVariable: "NOTIFIER_SCHEDULER_BUFFER_MULTIPLIER",
+			value:               "nope",
+		},
+		{
+			name:                "input invalid scheduled queue limit factor expects parse error",
+			environmentVariable: "NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR",
 			value:               "nope",
 		},
 		{

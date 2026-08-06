@@ -32,6 +32,10 @@ func (application *Application) runQueuePoller(requestContext context.Context) e
 }
 
 func (application *Application) claimAndSchedule(requestContext context.Context, claimOwner string) error {
+	if application.scheduledQueueIsFull() {
+		return nil
+	}
+
 	queuedDeliveries, claimError := application.workQueue.ClaimAvailableDeliveries(
 		requestContext,
 		claimOwner,
@@ -47,4 +51,12 @@ func (application *Application) claimAndSchedule(requestContext context.Context,
 	}
 
 	return nil
+}
+
+func (application *Application) scheduledQueueIsFull() bool {
+	return application.scheduler.QueueDepth() >= application.scheduledQueueLimit()
+}
+
+func (application *Application) scheduledQueueLimit() int {
+	return application.config.ScheduledQueueLimit()
 }

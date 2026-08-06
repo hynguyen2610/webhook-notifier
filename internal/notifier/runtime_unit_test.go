@@ -126,6 +126,42 @@ func TestQueuePollingWorkerAndOutcomeHandlersCoverBranches(t *testing.T) {
 	application.recordDeadLetter(events.DeliveryJob{QueueItemID: 1, Event: newTestEvent("customer-a", "event-4")}, "failed again")
 }
 
+func TestClaimAndScheduleSkipsClaimsWhenScheduledQueueIsFullAndResumesAfterDrain(t *testing.T) {
+	application := newUnitTestApplication()
+	application.config.WorkerCount = 1
+	application.config.ScheduledQueueLimitFactor = 2
+
+	unitQueue := application.workQueue.(*unitQueue)
+	unitQueue.enqueueDeliveredJob(newTestEvent("customer-a", "event-1"), "https://example.com/a", time.Now().UTC())
+	unitQueue.enqueueDeliveredJob(newTestEvent("customer-a", "event-2"), "https://example.com/a", time.Now().UTC())
+
+	application.scheduler.Enqueue(events.DeliveryJob{Event: newTestEvent("customer-a", "scheduled-1")})
+	application.scheduler.Enqueue(events.DeliveryJob{Event: newTestEvent("customer-b", "scheduled-2")})
+	if application.scheduler.QueueDepth() != 2 {
+		t.Fatalf("expected scheduled queue depth 2 before bounded claim, got %d", application.scheduler.QueueDepth())
+	}
+
+	if claimError := application.claimAndSchedule(context.Background(), "worker-a"); claimError != nil {
+		t.Fatalf("claim and schedule with full queue: %v", claimError)
+	}
+	if unitQueue.claimCallCount() != 0 {
+		t.Fatalf("expected zero queue claims while scheduled queue is full, got %d", unitQueue.claimCallCount())
+	}
+	if application.scheduler.QueueDepth() != 2 {
+		t.Fatalf("expected scheduled queue depth to remain 2, got %d", application.scheduler.QueueDepth())
+	}
+
+	scheduledJobs := application.scheduler.Start(context.Background())
+	<-scheduledJobs
+
+	if claimError := application.claimAndSchedule(context.Background(), "worker-a"); claimError != nil {
+		t.Fatalf("claim and schedule after drain: %v", claimError)
+	}
+	if unitQueue.claimCallCount() != 1 {
+		t.Fatalf("expected one queue claim after scheduled queue drained, got %d", unitQueue.claimCallCount())
+	}
+}
+
 func TestPerformDeliveryAttemptAndRunWorkerCoverFlowBranches(t *testing.T) {
 	application := newUnitTestApplication()
 	application.deliveryClient = fakeDeliveryClient{
@@ -310,6 +346,7 @@ type unitQueue struct {
 	queueState                workqueue.QueueStateSnapshot
 	deadLetters               []events.DeadLetterMessage
 	closeError                error
+	queueClaimCount           int
 }
 
 func (queue *unitQueue) EnqueueDeliveries(requestContext context.Context, subscriberEvent events.SubscriberEvent, webhookURLs []string, availableAt time.Time) (int, error) {
@@ -323,6 +360,7 @@ func (queue *unitQueue) ClaimAvailableDeliveries(requestContext context.Context,
 	if queue.claimError != nil {
 		return nil, queue.claimError
 	}
+	queue.queueClaimCount++
 	return queue.testQueue.ClaimAvailableDeliveries(requestContext, claimOwner, limit, claimedAt)
 }
 
@@ -363,6 +401,10 @@ func (queue *unitQueue) SnapshotDeadLetters(_ context.Context) ([]events.DeadLet
 
 func (queue *unitQueue) Close() error { return queue.closeError }
 
+func (queue *unitQueue) claimCallCount() int {
+	return queue.queueClaimCount
+}
+
 func (queue *unitQueue) enqueueDeliveredJob(event events.SubscriberEvent, webhookURL string, availableAt time.Time) {
 	_, _ = queue.testQueue.EnqueueDeliveries(context.Background(), event, []string{webhookURL}, availableAt)
 }
@@ -382,6 +424,7 @@ func newUnitTestApplication() *Application {
 			QueueClaimBatchSize:       2,
 			QueuePollInterval:         5 * time.Millisecond,
 			SchedulerBufferMultiplier: 2,
+			ScheduledQueueLimitFactor: 10,
 			MetricsReportInterval:     5 * time.Millisecond,
 			ShutdownTimeout:           time.Second,
 		},
