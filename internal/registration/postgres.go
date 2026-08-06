@@ -15,8 +15,13 @@ type PostgresRegistry struct {
 	snapshotQuery      string
 }
 
+var openPostgresConnection = sql.Open
+var closePostgresConnection = func(databaseConnection *sql.DB) error {
+	return databaseConnection.Close()
+}
+
 func NewPostgresRegistry(connectionString string, resolveQuery string, snapshotQuery string) (*PostgresRegistry, error) {
-	databaseConnection, openError := sql.Open("pgx", connectionString)
+	databaseConnection, openError := openPostgresConnection("pgx", connectionString)
 	if openError != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", openError)
 	}
@@ -96,7 +101,7 @@ func (registry *PostgresRegistry) Close() error {
 		return nil
 	}
 
-	closeError := registry.databaseConnection.Close()
+	closeError := closePostgresConnection(registry.databaseConnection)
 	if closeError != nil && !errors.Is(closeError, sql.ErrConnDone) {
 		return closeError
 	}

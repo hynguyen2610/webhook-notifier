@@ -41,8 +41,16 @@ type ingestResponse struct {
 	CreatedJobs    int `json:"createdJobs"`
 }
 
+var (
+	newRegistryStore         = registration.NewPostgresRegistry
+	newQueueRepository       = workqueue.NewPostgresRepository
+	newScheduler             = scheduler.NewRoundRobinScheduler
+	newDeliveryClientFactory = delivery.NewHTTPClient
+	newNotifierMetrics       = metrics.NewNotifierMetrics
+)
+
 func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger) (*Application, error) {
-	registryStore, registryError := registration.NewPostgresRegistry(
+	registryStore, registryError := newRegistryStore(
 		applicationConfig.PostgresConnection,
 		applicationConfig.RegistrationResolveQuery,
 		applicationConfig.RegistrationSnapshotQuery,
@@ -55,7 +63,7 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 		return nil, pingError
 	}
 
-	queueRepository, queueError := workqueue.NewPostgresRepository(applicationConfig.PostgresConnection)
+	queueRepository, queueError := newQueueRepository(applicationConfig.PostgresConnection)
 	if queueError != nil {
 		return nil, queueError
 	}
@@ -68,9 +76,9 @@ func NewApplication(applicationConfig config.NotifierConfig, logger *slog.Logger
 		logger:          logger,
 		registry:        registryStore,
 		workQueue:       queueRepository,
-		scheduler:       scheduler.NewRoundRobinScheduler(applicationConfig.WorkerCount * applicationConfig.SchedulerBufferMultiplier),
-		deliveryClient:  delivery.NewHTTPClient(applicationConfig.RequestTimeout),
-		notifierMetrics: metrics.NewNotifierMetrics(),
+		scheduler:       newScheduler(applicationConfig.WorkerCount * applicationConfig.SchedulerBufferMultiplier),
+		deliveryClient:  newDeliveryClientFactory(applicationConfig.RequestTimeout),
+		notifierMetrics: newNotifierMetrics(),
 		retryPolicy: retry.ExponentialBackoffPolicy{
 			InitialDelay:    applicationConfig.InitialRetryDelay,
 			MaxRetryAttempt: applicationConfig.MaxRetryAttempts,

@@ -18,8 +18,13 @@ type PostgresRepository struct {
 	databaseConnection *sql.DB
 }
 
+var openQueueConnection = sql.Open
+var closeQueueConnection = func(databaseConnection *sql.DB) error {
+	return databaseConnection.Close()
+}
+
 func NewPostgresRepository(connectionString string) (*PostgresRepository, error) {
-	databaseConnection, openError := sql.Open("pgx", connectionString)
+	databaseConnection, openError := openQueueConnection("pgx", connectionString)
 	if openError != nil {
 		return nil, fmt.Errorf("open postgres queue connection: %w", openError)
 	}
@@ -293,7 +298,7 @@ func (repository *PostgresRepository) Close() error {
 		return nil
 	}
 
-	closeError := repository.databaseConnection.Close()
+	closeError := closeQueueConnection(repository.databaseConnection)
 	if closeError != nil && !errors.Is(closeError, sql.ErrConnDone) {
 		return closeError
 	}

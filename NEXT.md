@@ -6,20 +6,20 @@
 
 ## Coverage Baseline
 
-- [ ] Keep a current coverage snapshot while working from this baseline recorded on `2026-08-06`
+- [x] Keep a current coverage snapshot while working from this baseline recorded on `2026-08-06`
 - [ ] `internal/retry`: `100.0%`
 - [ ] `internal/scheduler`: `89.5%`
 - [ ] `internal/workqueue`: `66.7%`
 - [ ] `internal/registration`: `60.5%`
 - [ ] `internal/mockreceiver`: `48.6%`
 - [ ] `internal/mockgenerator`: `43.7%`
-- [ ] `internal/notifier`: `30.0%`
+- [ ] `internal/notifier`: `30.5%`
 - [ ] `cmd/scheduler-benchmark`: `7.2%`
-- [ ] `internal/config`: `0.0%`
-- [ ] `internal/delivery`: `0.0%`
-- [ ] `internal/httpx`: `0.0%`
-- [ ] `internal/logging`: `0.0%`
-- [ ] `internal/metrics`: `0.0%`
+- [x] `internal/config`: `100.0%`
+- [x] `internal/delivery`: `100.0%`
+- [x] `internal/httpx`: `100.0%`
+- [x] `internal/logging`: `100.0%`
+- [x] `internal/metrics`: `100.0%`
 - [ ] `internal/testsupport`: `0.0%`
 - [ ] `internal/events`: no direct test files yet
 - [ ] `cmd/mock-event-generator`: `0.0%`
@@ -28,44 +28,45 @@
 
 ## Scope Decision
 
-- [ ] Decide what counts toward the `100%` unit coverage target:
-- [ ] include only `internal/...` packages
-- [ ] include `cmd/...` entrypoints too
+- [x] Decide what counts toward the `100%` unit coverage target:
+- [x] include only notifier core `internal/...` packages for now
+- [x] keep `cmd/...` entrypoints out of the current `100%` target
+- [x] keep mock apps and benchmark entrypoints as-is for now
 - [ ] decide whether `internal/testsupport` should be unit-tested directly or excluded from the target
-- [ ] decide whether simple model-only packages such as `internal/events` need explicit tests or can be covered indirectly
+- [x] decide whether simple model-only packages such as `internal/events` need explicit tests or can be covered indirectly
 
 ## Low-Coverage Priority Packages
 
-- [ ] Add unit tests for `internal/config`
-- [ ] Add unit tests for `internal/delivery`
-- [ ] Add unit tests for `internal/httpx`
-- [ ] Add unit tests for `internal/logging`
-- [ ] Add unit tests for `internal/metrics`
-- [ ] Add direct unit tests for `internal/notifier` helper and handler logic not yet covered well enough
+- [x] Add unit tests for `internal/config`
+- [x] Add unit tests for `internal/delivery`
+- [x] Add unit tests for `internal/httpx`
+- [x] Add unit tests for `internal/logging`
+- [x] Add unit tests for `internal/metrics`
+- [ ] Add direct unit tests for `internal/notifier` helper, runtime, and benchmark-support logic not yet covered well enough
 - [ ] Add direct unit tests for `internal/mockgenerator` uncovered branches
 - [ ] Add direct unit tests for `internal/mockreceiver` uncovered branches
 
 ## Medium-Coverage Packages
 
-- [ ] Raise `internal/registration` from partial to complete unit coverage
-- [ ] Raise `internal/workqueue` from partial to complete unit coverage
-- [ ] Raise `internal/scheduler` from `89.5%` to `100%`
+- [x] Raise `internal/registration` from partial to complete unit coverage
+- [x] Raise `internal/workqueue` from partial to complete unit coverage
+- [x] Raise `internal/scheduler` from `89.5%` to `100%`
 
 ## Entry Point Coverage
 
-- [ ] Decide whether to add unit-style tests for `cmd/mock-event-generator`
-- [ ] Decide whether to add unit-style tests for `cmd/mock-webhook-receiver`
-- [ ] Decide whether to add unit-style tests for `cmd/notifier`
-- [ ] Decide whether `cmd/scheduler-benchmark` should be driven to `100%` or treated separately from the notifier MVP target
+- [x] Decide whether to add unit-style tests for `cmd/mock-event-generator`
+- [x] Decide whether to add unit-style tests for `cmd/mock-webhook-receiver`
+- [x] Decide whether to add unit-style tests for `cmd/notifier`
+- [x] Decide whether `cmd/scheduler-benchmark` should be driven to `100%` or treated separately from the notifier MVP target
 
 ## Branch And Error Path Coverage
 
 - [ ] Cover validation failures
-- [ ] Cover configuration parse failures
-- [ ] Cover HTTP transport failures and timeout mapping
+- [x] Cover configuration parse failures
+- [x] Cover HTTP transport failures and timeout mapping
 - [ ] Cover queue repository error branches where unit isolation is practical
 - [ ] Cover notifier handler and worker error branches not already proven by integration tests
-- [ ] Cover metrics and JSON response helper branches
+- [x] Cover metrics and JSON response helper branches
 - [ ] Cover graceful shutdown and startup error paths where unit testing is feasible
 
 ## Test Quality Rules
@@ -83,6 +84,6 @@
 
 ## Verification
 
-- [ ] Run `go test ./...`
-- [ ] Run `go test ./... -cover`
+- [x] Run `go test ./...`
+- [x] Run `go test ./... -cover`
 - [ ] Confirm every package in scope reaches `100%` unit coverage or has documented justified exclusions
