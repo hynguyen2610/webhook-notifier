@@ -1,5 +1,19 @@
 # Webhook Notifier
 
+## Start Here
+
+If you are new to this repository and want to get the system running locally,
+send test events, and verify delivery results, start with
+[how-to-run.md](how-to-run.md).
+
+That guide covers:
+
+- local setup with Docker Compose and PostgreSQL
+- seeding webhook registrations
+- starting the notifier, mock receiver, and mock event generator
+- sending single events, batch events, bulk traffic, and whale scenarios
+- verifying results through receiver stats, notifier stats, and PostgreSQL queue state
+
 ## 1. Overview
 
 This project is a Go webhook notifier assignment built around a PostgreSQL-backed
@@ -119,6 +133,9 @@ The test strategy is layered:
 - unit coverage for focused logic such as retry backoff, scheduling, request validation, and metrics
 - integration coverage for notifier delivery, retry, timeout, dead-letter, fairness, and PostgreSQL-backed queue behavior
 - benchmark and load-test artifacts for fairness and horizontal-scale evidence
+
+For a hands-on local workflow, including how to run the stack and manually verify
+single-send and batch-send behavior, see [how-to-run.md](how-to-run.md).
 
 Useful commands:
 
