@@ -1,23 +1,132 @@
-flowchart LR
+flowchart TD
 
-Scheduler
+    %% =========================
+    %% Database
+    %% =========================
 
-Jobs["Job Channel"]
+    DB["PostgreSQL Delivery Queue"]
 
-W1["Worker 1"]
+    DB --> Scheduler
 
-W2["Worker 2"]
+    %% =========================
+    %% Scheduler
+    %% =========================
 
-W3["Worker 3"]
+    Scheduler["Round Robin Scheduler"]
 
-HTTP["HTTP Client"]
+    Scheduler --> QANav
+    Scheduler --> QBNav
+    Scheduler --> QCNav
 
-Scheduler --> Jobs
+    CQNav["Customer Queues Code"]
+    QANav["Customer A Queue Code"]
+    QBNav["Customer B Queue Code"]
+    QCNav["Customer C Queue Code"]
 
-Jobs --> W1
-Jobs --> W2
-Jobs --> W3
+    CQNav ~~~ QANav
+    QANav ~~~ QBNav
+    QBNav ~~~ QCNav
 
-W1 --> HTTP
-W2 --> HTTP
-W3 --> HTTP
+    %% =========================
+    %% Customer Queues
+    %% =========================
+
+    subgraph CustomerQueues["Customer Queues"]
+
+        direction TB
+
+        subgraph QA["Customer A"]
+            direction LR
+            A1["101"]
+            A2["103"]
+            A3["105"]
+        end
+
+        subgraph QB["Customer B"]
+            direction LR
+            B1["102"]
+        end
+
+        subgraph QC["Customer C"]
+            direction LR
+            C1["104"]
+            C2["106"]
+        end
+
+    end
+
+    CQNav ~~~ A1
+    QANav ~~~ A1
+    QBNav ~~~ B1
+    QCNav ~~~ C1
+
+    QA --> WQ
+    QB --> WQ
+    QC --> WQ
+
+    %% =========================
+    %% Worker Queue
+    %% =========================
+
+    WQ["Buffered Worker Queue
+(Go Channel)"]
+
+    WQ --> W1
+    WQ --> W2
+    WQ --> W3
+
+    %% =========================
+    %% Worker Pool
+    %% =========================
+
+    WorkersNav["Worker Pool Code"]
+
+    subgraph Workers["Worker Pool"]
+
+        direction LR
+
+        W1["Worker #1
+
+Processing
+Customer A
+Event 101"]
+
+        W2["Worker #2
+
+Processing
+Customer B
+Event 102"]
+
+        W3["Worker #3
+
+Idle"]
+
+    end
+
+    WorkersNav ~~~ W1
+
+    W1 --> HTTP1["POST Customer A
+200 OK"]
+
+    W2 --> HTTP2["POST Customer B
+500 Error"]
+
+    HTTP1 --> SUCCESS["Delivered"]
+
+    HTTP2 --> RETRY["Retry"]
+
+    click DB href "../../internal/workqueue/postgres.go#L34" "Open PostgreSQL queue schema and claim logic"
+    click Scheduler href "../../internal/scheduler/round_robin.go#L21" "Open round-robin scheduler"
+    click CQNav href "../../internal/notifier/poller.go#L34" "Open queue claim and scheduler enqueue flow"
+    click QANav href "../../internal/scheduler/round_robin.go#L56" "Open scheduler customer queue enqueue logic"
+    click QBNav href "../../internal/scheduler/round_robin.go#L56" "Open scheduler customer queue enqueue logic"
+    click QCNav href "../../internal/scheduler/round_robin.go#L56" "Open scheduler customer queue enqueue logic"
+    click WQ href "../../internal/scheduler/round_robin.go#L30" "Open scheduler output channel"
+    click WorkersNav href "../../internal/notifier/runtime.go#L35" "Open worker startup logic"
+    click W1 href "../../internal/notifier/worker.go#L9" "Open worker execution loop"
+    click W2 href "../../internal/notifier/worker.go#L9" "Open worker execution loop"
+    click W3 href "../../internal/notifier/worker.go#L9" "Open worker execution loop"
+    click HTTP1 href "../../internal/notifier/worker_delivery.go#L10" "Open delivery attempt and success handling"
+    click HTTP2 href "../../internal/notifier/worker_delivery.go#L30" "Open retryable delivery failure handling"
+    click SUCCESS href "../../internal/workqueue/postgres.go#L180" "Open queue completion update"
+    click RETRY href "../../internal/workqueue/postgres.go#L193" "Open queue retry update"
