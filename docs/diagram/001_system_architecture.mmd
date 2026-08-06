@@ -1,0 +1,46 @@
+flowchart TB
+    Producer["Mock Event Producer"]
+    
+    Queue[(PostgreSQL<br/>Webhook Delivery Queue)]
+    
+    subgraph Notifier["Notifier Instance<br/>(Horizontally Scalable)"]
+        Poller["Queue Poller<br/>FOR UPDATE SKIP LOCKED"]
+        
+        Scheduler["Round Robin Scheduler<br/>Customer-level fairness"]
+        
+        Workers["Worker Pool"]
+        
+        Handler["Delivery Handler<br/>Execution + Result Handling"]
+    end
+    
+    subgraph Customers["Customer Webhook Endpoints"]
+        CustomerA["Customer A"]
+        CustomerB["Customer B"]
+        CustomerC["Customer C"]
+    end
+    
+    DLQ[(Dead Letter Records)]
+    
+    Producer -->|"Insert delivery jobs"| Queue
+    
+    Queue -->|"Claim available jobs"| Poller
+    
+    Poller --> Scheduler
+    
+    Scheduler --> Workers
+    
+    Workers --> Handler
+    
+    Handler -->|"HTTP POST"| CustomerA
+    Handler -->|"HTTP POST"| CustomerB
+    Handler -->|"HTTP POST"| CustomerC
+    
+    CustomerA -->|"2xx Success"| Handler
+    CustomerB -->|"2xx Success"| Handler
+    CustomerC -->|"2xx Success"| Handler
+    
+    Handler -->|"Mark Delivered"| Queue
+    
+    Handler -->|"Retryable Failure<br/>Update available_at"| Queue
+    
+    Handler -->|"Permanent Failure"| DLQ

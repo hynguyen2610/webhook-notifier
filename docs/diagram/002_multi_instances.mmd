@@ -1,0 +1,33 @@
+flowchart LR
+    Producer[Event Producer] --> DB[(PostgreSQL Delivery Queue)]
+
+    DB --> Poller1
+    DB --> Poller2
+
+    subgraph Instance1[Notifier Instance 1]
+        Poller1[Scheduler / Poller]
+        Queue1[Job Queue]
+        Workers1[Worker Pool]
+        HTTP1[HTTP Delivery]
+
+        Poller1 --> Queue1
+        Queue1 --> Workers1
+        Workers1 --> HTTP1
+    end
+
+    subgraph Instance2[Notifier Instance 2]
+        Poller2[Scheduler / Poller]
+        Queue2[Job Queue]
+        Workers2[Worker Pool]
+        HTTP2[HTTP Delivery]
+
+        Poller2 --> Queue2
+        Queue2 --> Workers2
+        Workers2 --> HTTP2
+    end
+
+    HTTP1 --> Customer1[Customer Webhook]
+    HTTP2 --> Customer2[Customer Webhook]
+
+    HTTP1 --> DB
+    HTTP2 --> DB
