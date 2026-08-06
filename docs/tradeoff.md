@@ -108,6 +108,24 @@ This document records conscious implementation tradeoffs, deferred production fe
 
 ---
 
+## Scheduled Queue Backpressure
+
+**Chosen:** Bounded in-memory scheduled queue limit instead of unlimited scheduler buffering
+
+### Benefits
+- Prevents the poller from continuing to pull PostgreSQL work indefinitely when workers are already behind.
+- Reduces the risk of unbounded in-memory growth inside a notifier instance.
+- Keeps PostgreSQL as the durable backlog when local worker capacity is temporarily saturated.
+- Makes overload behavior easier to reason about because the queue bound is tied to worker capacity through `workerCount * 10`.
+
+### Trade-offs
+- If the scheduled queue is already full, newly claimable PostgreSQL rows wait longer before entering the in-process scheduler.
+- Throughput can drop in some workloads if the queue limit is too conservative for the available CPU, network, or downstream webhook capacity.
+- Adds another tuning knob, `NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR`, that may need adjustment as workloads change.
+- A fixed queue bound is a simple backpressure mechanism, but it is less adaptive than dynamic claim sizing or feedback based on real worker utilization.
+
+---
+
 ## Observability Scope
 
 **Chosen:** Focused benchmark and load-test metrics instead of production monitoring stack
