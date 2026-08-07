@@ -1,15 +1,29 @@
 sequenceDiagram
 
-Producer->>Kafka: Publish Event
+participant Producer
+participant Notifier
+participant Registration as Registration Store
+participant Queue as PostgreSQL Queue
+participant Poller
+participant Scheduler
+participant Worker
+participant Customer
 
-Kafka->>Consumer: Consume
+Producer->>Notifier: POST subscriber event
+Notifier->>Registration: Resolve webhook URLs by customer
+Registration-->>Notifier: Active webhook URLs
+Notifier->>Queue: Insert pending delivery rows
+Queue-->>Notifier: Delivery rows persisted
+Notifier-->>Producer: 202 Accepted
 
-Consumer->>Scheduler: Add Job
+loop Poll interval
+    Poller->>Queue: Claim available pending rows
+    Queue-->>Poller: Claimed delivery jobs
+    Poller->>Scheduler: Enqueue claimed jobs
+end
 
-Scheduler->>Worker: Dispatch
-
-Worker->>Customer: HTTP POST
-
+Scheduler->>Worker: Dispatch next customer job
+Worker->>Customer: HTTP POST webhook
 Customer-->>Worker: 200 OK
-
-Worker->>Kafka: Commit Offset
+Worker->>Queue: Mark row completed
+Queue-->>Worker: Completion persisted
