@@ -94,7 +94,7 @@ Implementation:
 
 Evidence:
 
-- Latest multi-instance benchmark report: [docs/test-report/multi-instance-benchmark-20260803-235333.md](docs/test-report/multi-instance-benchmark-20260803-235333.md)
+- Latest multi-instance benchmark report: [docs/test-report/multi-instance-benchmark-20260807-034612.md](docs/test-report/multi-instance-benchmark-20260807-034612.md)
 - Benchmark methodology: [docs/spec/multi-instance-load-test.md](docs/spec/multi-instance-load-test.md)
 - Benchmark-report clarity ADR: [docs/adr/0004_improve_benchmark_report_clarity_and_app_level_confidence.md](docs/adr/0004_improve_benchmark_report_clarity_and_app_level_confidence.md)
 
@@ -194,7 +194,7 @@ More detail:
 
 ### B. Load Test Results
 
-- Multi-instance benchmark report: [docs/test-report/multi-instance-benchmark-20260803-235333.md](docs/test-report/multi-instance-benchmark-20260803-235333.md)
+- Multi-instance benchmark report: [docs/test-report/multi-instance-benchmark-20260807-034612.md](docs/test-report/multi-instance-benchmark-20260807-034612.md)
 - Scheduler benchmark report: [docs/test-report/scheduler-benchmark-scheduler-20260804-003724.html](docs/test-report/scheduler-benchmark-scheduler-20260804-003724.html)
 - Metrics appendix: [docs/test-report/load-test-metrics-appendix.html](docs/test-report/load-test-metrics-appendix.html)
 
