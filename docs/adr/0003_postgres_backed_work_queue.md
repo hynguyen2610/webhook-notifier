@@ -1,104 +1,176 @@
-# ADR 0003: Replace Kafka With A PostgreSQL-Backed Work Queue
+# ADR 0003: Replace Kafka with a PostgreSQL-Backed Work Queue
 
-- Status: Accepted
-- Date: 2026-08-03
-- Deciders: Project implementation team
+- **Status:** Accepted
+- **Date:** 2026-08-03
+- **Deciders:** Project implementation team
 
-## Context
+---
 
-The current implementation uses Kafka as the transport between event generation and
-webhook delivery.
+# Context
 
-That design works, but it increases the amount of infrastructure and operational
-knowledge required to run and explain this project:
+The initial implementation used Kafka to transport subscriber events from the mock event producer to the webhook notifier.
 
-- local development depends on Kafka connectivity and port-forwards
-- the notifier can fail due to broker reachability issues unrelated to delivery logic
-- the mock event generator exists mainly to publish into Kafka
-- the project needs Kafka-specific CI, local setup, and troubleshooting steps
+Kafka is a proven platform for high-throughput event streaming and distributed messaging. However, this assignment focuses on building a reliable webhook notifier rather than a general-purpose event streaming platform.
 
-For this assignment, the project goal is to demonstrate a reliable webhook
-notifier with fair scheduling, retries, DLQ handling, and PostgreSQL-backed
-webhook registrations.
+The core functional requirements are:
 
-Kafka is not the core requirement of the assignment itself. It is an
-implementation choice that adds complexity to an otherwise simpler notifier.
+- reliable webhook delivery
+- at-least-once delivery semantics
+- retries with exponential backoff
+- dead-letter handling
+- fair scheduling across customers
+- horizontal worker execution
+- persistence of webhook registrations
 
-Because PostgreSQL is already required for webhook registrations, the team can
-simplify the architecture by using the same database as the work queue store.
+PostgreSQL is already required to store webhook registrations. It also provides durable storage, transactions, and row-level locking, making it capable of acting as a reliable work queue for the expected workload.
 
-## Decision
+Because this project is a proof of concept, introducing Kafka adds operational complexity without providing significant benefits for the required functionality.
 
-The project will stop using Kafka as the primary event transport and will move to
-a **PostgreSQL-backed work queue** using the same PostgreSQL database already used
-for webhook registrations.
+---
 
-The new default flow will be:
+# Decision
 
-1. incoming subscriber events are written into a PostgreSQL queue table
-2. the notifier polls and claims pending jobs from PostgreSQL
-3. the existing scheduler and worker pool process claimed jobs
-4. retry metadata and terminal failure state are persisted in PostgreSQL
-5. dead-lettered records remain queryable in PostgreSQL instead of being
-   published to a Kafka DLQ topic
+Kafka will no longer be used as the primary transport layer.
 
-Kafka-related components may remain temporarily during migration, but they are no
-longer the target architecture for the simplified project.
+Subscriber events are persisted directly into a PostgreSQL-backed work queue.
 
-## Decision Drivers
+The processing pipeline becomes:
 
-- reduce local setup complexity
-- avoid Kafka-specific connectivity failures during demonstration
-- keep infrastructure aligned with the minimum assignment needs
-- reuse the PostgreSQL dependency that already exists
-- make the project easier to explain, run, and submit
+1. subscriber events are inserted into the work queue
+2. notifier instances poll and claim pending deliveries
+3. claimed deliveries are passed to the Round Robin scheduler
+4. the scheduler dispatches jobs fairly across customers
+5. workers deliver webhooks
+6. retries and terminal failures are persisted back into PostgreSQL
+7. dead-lettered deliveries remain available for inspection in the database
 
-## Consequences
+The scheduler, retry logic, and worker pool remain unchanged. Only the mechanism used to obtain work changes from Kafka consumption to PostgreSQL queue polling.
 
-### Positive
+---
 
-- one fewer infrastructure dependency to run locally
-- simpler README, bootstrap, and troubleshooting paths
-- easier end-to-end testing with a single persistent store
-- queue state, retries, and dead letters become directly inspectable in SQL
-- fewer moving parts for demonstration and submission review
+# Decision Drivers
 
-### Trade-Offs
+The decision was based on the following considerations:
 
-- the system loses Kafka consumer-group semantics as the default scaling model
-- queue claiming and concurrency control must now be implemented carefully in SQL
-- PostgreSQL becomes more central to runtime correctness
-- some existing Kafka integration code, tests, and workflow steps will need to be
-  removed or replaced
+- Customer-level fairness is a primary requirement of the assignment.
+- PostgreSQL allows the notifier to claim batches of pending deliveries and apply scheduling before dispatching work to workers.
+- Reliable work claiming can be implemented using transactions and row-level locking (`FOR UPDATE SKIP LOCKED`).
+- PostgreSQL is already required for webhook registrations, allowing the existing datastore to be reused.
+- Queue state, retries, and dead-letter records become immediately inspectable through SQL.
+- The assignment evaluates webhook delivery behaviour rather than distributed event streaming infrastructure.
+- Removing Kafka reduces infrastructure while preserving the required functionality.
 
-## Implementation Guidance
+---
 
-The migration should prefer small, explicit steps:
+# Why PostgreSQL Was Chosen
 
-1. introduce queue tables for pending, claimed, completed, and dead-lettered work
-2. add a queue repository abstraction for enqueue, claim, ack, retry, and dead-letter operations
-3. move the notifier intake path from Kafka consumption to PostgreSQL queue polling
-4. update the mock event generator to write into PostgreSQL instead of Kafka
-5. remove Kafka from local stack scripts, README instructions, and CI workflows
-6. replace Kafka integration tests with PostgreSQL queue integration tests
+This notifier is fundamentally a **durable work queue**, not an event streaming platform.
 
-## Out Of Scope For This ADR
+Its primary responsibilities are:
+
+- reliably storing pending deliveries
+- safely distributing work across multiple notifier instances
+- retrying failed deliveries
+- recording dead-lettered deliveries
+- scheduling work fairly across customers
+
+Customer-level fairness is one of the most important requirements of the assignment.
+
+With a PostgreSQL-backed queue, notifier instances can claim batches of pending deliveries, organize them by customer, and apply the existing Round Robin scheduler before dispatching work to the worker pool.
+
+This gives the application full control over scheduling decisions instead of coupling fairness to broker partitioning or message ordering.
+
+PostgreSQL also provides the transactional guarantees required for reliable work claiming while reusing the same datastore that already stores webhook registrations.
+
+Kafka is an excellent choice when systems require:
+
+- very high ingestion throughput
+- multiple independent consumers
+- event replay
+- long-term event retention
+- cross-service event streaming
+
+Those capabilities become valuable at larger scale but are outside the scope of this proof-of-concept assignment.
+
+---
+
+# Consequences
+
+## Positive
+
+- Removes an infrastructure dependency.
+- Simplifies local development and deployment.
+- Simplifies CI and integration testing.
+- Queue state can be inspected directly using SQL.
+- Retries and dead-letter records remain durable in the database.
+- Customer-level fairness is implemented entirely within the notifier instead of depending on broker partitioning.
+- The architecture becomes easier to explain and review.
+
+## Trade-Offs
+
+Compared with Kafka, this approach has several limitations:
+
+- PostgreSQL becomes the primary bottleneck as throughput grows.
+- Queue polling generates additional database load.
+- Horizontal scaling depends on efficient row claiming and indexing instead of Kafka partitions.
+- Event replay capabilities are more limited.
+- Supporting multiple independent consumers is less flexible than using an event streaming platform.
+
+These trade-offs are acceptable because the assignment prioritizes reliable webhook delivery, customer fairness, and simplicity over maximum streaming throughput.
+
+---
+
+# Future Evolution
+
+The notifier is intentionally structured so that queue storage is separated from scheduling and delivery.
+
+If future requirements include:
+
+- significantly higher throughput
+- multiple downstream consumers
+- event replay
+- cross-service event streaming
+- large-scale distributed deployments
+
+the ingestion layer can be migrated to Kafka without requiring fundamental changes to the scheduler, retry logic, or worker pool.
+
+Kafka would then become responsible for durable event transport, while the notifier would continue to focus on fair scheduling and reliable webhook delivery.
+
+---
+
+# Implementation Guidance
+
+The migration consists of the following steps:
+
+1. Persist subscriber events into a PostgreSQL work queue.
+2. Poll and claim pending deliveries using transactional row locking (`FOR UPDATE SKIP LOCKED`).
+3. Feed claimed deliveries into the existing scheduler.
+4. Persist acknowledgements, retries, and dead-letter state.
+5. Update the mock event producer to enqueue into PostgreSQL.
+6. Remove Kafka-specific startup scripts, documentation, and integration tests.
+7. Replace Kafka integration tests with PostgreSQL queue integration tests.
+
+---
+
+# Out of Scope
 
 This ADR does not define:
 
-- the exact SQL schema
-- the exact row-locking strategy
-- whether polling uses `FOR UPDATE SKIP LOCKED` or another claim pattern
-- whether event ingestion happens by HTTP only or through a separate producer process
+- the queue table schema
+- polling interval tuning
+- retry scheduling policy
+- queue indexing strategy
+- producer implementation
+- database performance tuning
 
-Those details should be captured in follow-up implementation work or a more
-specific ADR if needed.
+Those implementation details are documented separately or may be addressed by future ADRs.
 
-## Related Files
+---
 
-- [README.md](../README.md)
-- [implementation-checklist.md](../plan/implementation-checklist.md)
-- [internal/notifier/app.go](../../internal/notifier/app.go)
-- [internal/registration/postgres.go](../../internal/registration/postgres.go)
-- [internal/workqueue/postgres.go](../../internal/workqueue/postgres.go)
-- [scripts/start-local-stack.sh](../../scripts/start-local-stack.sh)
+# Related Files
+
+- `README.md`
+- `docs/plan/implementation-checklist.md`
+- `internal/workqueue/`
+- `internal/notifier/`
+- `internal/registration/`
