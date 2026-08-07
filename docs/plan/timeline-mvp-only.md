@@ -1,4 +1,9 @@
-# F-Company Webhook Assignment - Implementation Plan & Estimation
+# F-Company Webhook Assignment - Implementation Plan & Estimation (Historical)
+
+> Historical note: this timeline reflects the original Kafka-first MVP plan
+> before the project moved to the current PostgreSQL-backed queue design. Keep
+> it as delivery history, not as the source of truth for today's architecture
+> or setup steps.
 
 > **Objective:** Deliver a functional MVP within **6 working days (5 hours/day)**. Production-ready features are intentionally deferred.
 

@@ -130,7 +130,7 @@ separate metric correctness problems from horizontal-scaling behavior.
 ## Related Files
 
 - [README.md](../README.md)
-- [README.html](../../cmd/scheduler-benchmark/README.html)
+- [cmd/scheduler-benchmark/README.md](../../cmd/scheduler-benchmark/README.md)
 - [app-load-test-opt-in-checklist.md](../plan/app-load-test-opt-in-checklist.md)
 - [multi-instance-benchmark-checklist.md](../plan/multi-instance-benchmark-checklist.md)
 - [scheduler-benchmark-checklist.md](../plan/scheduler-benchmark-checklist.md)

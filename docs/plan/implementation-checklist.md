@@ -1,6 +1,16 @@
-# Webhook Notifier Implementation Checklist
+# Webhook Notifier Implementation Checklist (Historical)
 
-This checklist translates the current requirement and planning documents into an execution-ready implementation plan for the assignment.
+> Historical note: this checklist captures the original Kafka-first delivery
+> plan and Kubernetes assumptions from early assignment work. It is no longer
+> the current runtime design.
+>
+> For the current PostgreSQL-backed architecture and local run flow, use
+> [README.md](../../README.md),
+> [how-to-run.md](../../how-to-run.md), and
+> [postgres-work-queue-migration-checklist.md](./postgres-work-queue-migration-checklist.md).
+
+This checklist translates the original requirement and planning documents into
+an execution-ready implementation plan for the assignment at that time.
 
 ## Existing Kubernetes Environment
 
