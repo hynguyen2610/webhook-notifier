@@ -39,6 +39,19 @@ The system still accepts any non-empty `eventType` string and preserves it
 through queueing and delivery, but the three values above are the documented and
 tested set for local tooling and examples.
 
+## Metrics Quick Reference
+
+For a direct answer to "what are your metrics?", see
+[docs/metrics/quick-reference.md](docs/metrics/quick-reference.md).
+
+That page centralizes the project metrics for:
+
+- throughput
+- fairness
+- starvation detection
+- queue health
+- retry behavior
+
 ## 2. Assignment Challenges
 
 ### Reliability
