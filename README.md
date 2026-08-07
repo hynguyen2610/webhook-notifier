@@ -29,16 +29,6 @@ PostgreSQL rows when scheduled queue depth reaches
 configuration as the default for `NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR`.
 You can tune that bound by setting `NOTIFIER_SCHEDULED_QUEUE_LIMIT_FACTOR`.
 
-Explicitly supported event types:
-
-- `subscriber.created`
-- `subscriber.added_to_segment`
-- `subscriber.unsubscribed`
-
-The system still accepts any non-empty `eventType` string and preserves it
-through queueing and delivery, but the three values above are the documented and
-tested set for local tooling and examples.
-
 ## Metrics Quick Reference
 
 For a direct answer to "what are your metrics?", see
